@@ -1,0 +1,30 @@
+[Unit]
+Description=Books catalog shared editor
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=books
+Group=books
+WorkingDirectory=/srv/books/app/backend-proxmox
+EnvironmentFile=/etc/books-admin.env
+Environment=NODE_ENV=production
+Environment=NODE_OPTIONS=--max-old-space-size=192
+ExecStart=/usr/bin/node /srv/books/app/backend-proxmox/server.js
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ReadOnlyPaths=/srv/books
+ReadWritePaths=/var/lib/books
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+LockPersonality=true
+MemoryMax=256M
+LimitNOFILE=4096
+
+[Install]
+WantedBy=multi-user.target

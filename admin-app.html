@@ -1,0 +1,3159 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Менеджер книг — админка</title>
+    <style>
+      :root {
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-soft: #6e6e73;
+        --ink-faint: #86868b;
+        --accent: #c2410c;
+        --accent-dark: #9a3412;
+        --danger: #d70015;
+        --line: #e8e8ed;
+        --radius: 20px;
+        --radius-sm: 12px;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+        --shadow-pop: 0 8px 30px rgba(0, 0, 0, 0.12), 0 24px 70px rgba(0, 0, 0, 0.14);
+      }
+
+      * { box-sizing: border-box; margin: 0; padding: 0; }
+
+      html, body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        line-height: 1.45;
+      }
+
+      ::selection { background: rgba(194, 65, 12, 0.18); }
+
+      body { padding: 32px 24px 64px; }
+
+      button { font: inherit; cursor: pointer; }
+      input, textarea, select { font: inherit; }
+
+      /* ——— Шапка ——— */
+      .topbar {
+        max-width: 1280px;
+        margin: 0 auto 28px;
+        display: flex;
+        flex-wrap: wrap;
+        align-items: center;
+        gap: 10px;
+      }
+      .topbar h1 {
+        font-size: 26px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        margin-right: auto;
+      }
+      .pending-dot {
+        display: none;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        background: #ffd60a;
+        margin-left: 8px;
+        vertical-align: middle;
+        box-shadow: 0 0 0 3px rgba(255, 214, 10, 0.3);
+        animation: pulse 2s ease-in-out infinite;
+      }
+      .pending-dot.on { display: inline-block; }
+      @keyframes pulse {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.35); }
+      }
+
+      /* выпадающее меню «Резервная копия» */
+      .menu-wrap { position: relative; }
+      .menu {
+        position: absolute;
+        top: calc(100% + 8px);
+        right: 0;
+        min-width: 240px;
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        box-shadow: var(--shadow-pop);
+        padding: 6px;
+        z-index: 40;
+        animation: pop 0.18s cubic-bezier(0.2, 0.9, 0.3, 1.1) both;
+      }
+      .menu button {
+        display: block;
+        width: 100%;
+        text-align: left;
+        border: none;
+        background: none;
+        padding: 10px 14px;
+        border-radius: 9px;
+        font-size: 14px;
+        color: var(--ink);
+      }
+      .menu button:hover { background: var(--bg); }
+      .menu button.menu-danger { color: var(--danger); }
+      .menu button.menu-danger:hover { background: #fff0f0; }
+      .menu-sep { height: 1px; background: var(--line); margin: 5px 8px; }
+
+      .btn {
+        border: 1px solid var(--line);
+        background: var(--card);
+        color: var(--ink);
+        border-radius: 980px;
+        padding: 10px 18px;
+        font-size: 14px;
+        font-weight: 500;
+        transition: background 0.2s ease, border-color 0.2s ease, transform 0.15s ease;
+      }
+      .btn:hover { background: #fbfbfd; border-color: #d2d2d7; }
+      .btn:active { transform: scale(0.97); }
+      .btn.primary {
+        background: var(--accent);
+        border-color: var(--accent);
+        color: #fff;
+      }
+      .btn.primary:hover { background: var(--accent-dark); border-color: var(--accent-dark); }
+      .btn.danger { color: var(--danger); }
+      .btn.danger:hover { border-color: #f5c6ca; background: #fff5f5; }
+      .btn.small { padding: 7px 14px; font-size: 13px; }
+      .btn:disabled { opacity: 0.45; cursor: not-allowed; transform: none; }
+
+      /* ——— Двухколоночный layout ——— */
+      .layout {
+        max-width: 1280px;
+        margin: 0 auto;
+        display: grid;
+        grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+        gap: 22px;
+        align-items: start;
+      }
+
+      .panel {
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow);
+        overflow: hidden;
+      }
+      .panel + .panel { margin-top: 22px; }
+      .panel-head {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        flex-wrap: wrap;
+        padding: 18px 22px;
+        border-bottom: 1px solid var(--line);
+      }
+      .panel-head h2 { font-size: 17px; font-weight: 600; margin-right: auto; }
+      .panel-body { padding: 22px; }
+
+      /* ——— Поиск по админке ——— */
+      .admin-search { flex: 1 1 180px; min-width: 0; }
+      .admin-search input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 980px;
+        padding: 8px 16px;
+        font-size: 13.5px;
+        background: #fbfbfd;
+      }
+      .admin-search input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.14);
+        background: #fff;
+      }
+
+      /* ——— Список книг в админке ——— */
+      .rows { display: flex; flex-direction: column; gap: 10px; }
+
+      .row {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 10px 14px;
+        background: #fff;
+        cursor: grab;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      }
+      .row:hover { border-color: #d2d2d7; box-shadow: var(--shadow); }
+      .row:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+      .row.dragging { opacity: 0.45; }
+      .row.drop-target { border-color: var(--accent); box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.18); }
+      .row.filtered-out { display: none; }
+
+      .grip {
+        flex: none;
+        color: var(--ink-faint);
+        display: grid;
+        place-items: center;
+        width: 18px;
+      }
+      .thumb {
+        flex: none;
+        width: 40px;
+        height: 54px;
+        border-radius: 7px;
+        object-fit: cover;
+        background: linear-gradient(135deg, #e8e8ed, #f5f5f7);
+        display: grid;
+        place-items: center;
+        color: var(--accent);
+        font-weight: 700;
+        font-size: 16px;
+        overflow: hidden;
+      }
+      .thumb img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .row-main { flex: 1; min-width: 0; }
+      .row-name {
+        font-weight: 600;
+        font-size: 15px;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row-meta {
+        font-size: 12.5px;
+        color: var(--ink-faint);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .row-order {
+        flex: none;
+        font-size: 12px;
+        color: var(--ink-faint);
+        min-width: 20px;
+        text-align: center;
+        font-variant-numeric: tabular-nums;
+      }
+      .row-badge {
+        flex: none;
+        font-size: 11px;
+        font-weight: 600;
+        padding: 3px 9px;
+        border-radius: 980px;
+      }
+      .row-badge.open { color: var(--accent-dark); background: rgba(194, 65, 12, 0.1); }
+      .row-badge.lock { color: #9a4a00; background: rgba(255, 159, 10, 0.14); }
+      .row-actions { flex: none; display: flex; gap: 4px; align-items: center; }
+      .icon-btn {
+        width: 34px;
+        height: 34px;
+        border-radius: 10px;
+        border: 1px solid transparent;
+        background: transparent;
+        color: var(--ink-soft);
+        display: grid;
+        place-items: center;
+        transition: background 0.2s ease, color 0.2s ease;
+      }
+      .icon-btn:hover { background: var(--bg); color: var(--ink); }
+      .icon-btn.danger:hover { background: #fff0f0; color: var(--danger); }
+      .icon-btn:disabled { opacity: 0.3; }
+      .move-btns { display: none; gap: 4px; }
+
+      .empty-box {
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 14.5px;
+        padding: 48px 20px;
+        border: 1px dashed var(--line);
+        border-radius: var(--radius-sm);
+      }
+
+      /* ——— Инспектор оформления: строки «подпись — контрол» ——— */
+      .inspector { display: flex; flex-direction: column; }
+      .insp-sec {
+        font-size: 11.5px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin: 18px 0 4px;
+      }
+      .insp-sec:first-child { margin-top: 0; }
+      .insp-row {
+        display: grid;
+        grid-template-columns: 130px minmax(0, 1fr);
+        align-items: center;
+        gap: 14px;
+        padding: 9px 0;
+        border-bottom: 1px solid var(--line);
+      }
+      .insp-row:last-child { border-bottom: none; }
+      .insp-row > label {
+        font-size: 13.5px;
+        font-weight: 500;
+        color: var(--ink-soft);
+      }
+      .insp-row input[type="text"], .insp-row select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 9px 12px;
+        font-size: 14px;
+        background: #fbfbfd;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .insp-row input:focus, .insp-row select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.14);
+        background: #fff;
+      }
+      .insp-ctl { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .insp-ctl input[type="range"] { flex: 1; min-width: 90px; accent-color: var(--accent); }
+      .insp-ctl select { width: auto; flex: none; max-width: 100%; }
+      .insp-ctl .val {
+        font-size: 12.5px;
+        font-weight: 600;
+        color: var(--ink-faint);
+        min-width: 46px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      /* числовые поля рядом с ползунками — для точного ввода */
+      .num-inp {
+        width: 64px;
+        flex: none;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 7px 8px;
+        font-size: 13.5px;
+        font-weight: 600;
+        text-align: center;
+        background: #fbfbfd;
+        font-variant-numeric: tabular-nums;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .num-inp:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 3px rgba(194, 65, 12, 0.14);
+        background: #fff;
+      }
+      .hex-inp { width: 92px; font-family: ui-monospace, Menlo, Consolas, monospace; }
+      .hex-inp.bad { border-color: var(--danger); }
+      .insp-ctl input[type="color"] {
+        width: 42px;
+        flex: none;
+        height: 34px;
+        padding: 2px;
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        background: #fff;
+        cursor: pointer;
+      }
+
+      /* ——— Поля панелей ——— */
+      .form-grid { display: grid; gap: 14px; }
+      .form-grid label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-soft);
+        margin-bottom: 6px;
+      }
+      .form-grid input, .form-grid select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 11px 14px;
+        background: #fbfbfd;
+        color: var(--ink);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .form-grid input:focus, .form-grid select:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.14);
+        background: #fff;
+      }
+      .form-grid input[type="color"] {
+        padding: 4px;
+        height: 46px;
+        cursor: pointer;
+      }
+      .form-grid input[type="range"] { padding: 0; }
+      .range-row { display: flex; align-items: center; gap: 12px; }
+      .range-row input[type="range"] { flex: 1; }
+      .range-row .val {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink);
+        min-width: 58px;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+      }
+      .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .hint { font-size: 12.5px; color: var(--ink-faint); margin-top: 8px; }
+      .hint b { color: var(--ink-soft); }
+
+      /* ——— Публикация ——— */
+      .pub-status {
+        font-size: 13.5px;
+        color: var(--ink-soft);
+        margin-top: 12px;
+        min-height: 18px;
+        white-space: pre-line;
+      }
+      .pub-status.err { color: var(--danger); }
+      .pub-status.ok { color: #1a7f37; }
+
+      /* ——— Превью страницы ——— */
+      .preview-wrap { position: sticky; top: 24px; }
+      .preview-frame {
+        width: 100%;
+        height: 620px;
+        border: none;
+        display: block;
+        background: var(--bg);
+      }
+
+      /* ——— Редактор страницы: настройки слева, живой предпросмотр справа ——— */
+      .design-panel { padding: 0; overflow: hidden; }
+      .design-split {
+        display: grid;
+        grid-template-columns: 340px minmax(0, 1fr);
+        min-height: 560px;
+      }
+
+      /* левая колонка — настройки */
+      .inspector {
+        border-right: 1px solid var(--line);
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: var(--card);
+      }
+      .insp-scroll { flex: 1; overflow-y: auto; }
+      .insp-head { padding: 20px 20px 14px; border-bottom: 1px solid var(--line); }
+      .insp-head h2 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+      .insp-head p { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+      .insp-section { padding: 18px 20px; }
+      .insp-section h3 { font-size: 14px; font-weight: 600; }
+      .insp-desc { font-size: 12.5px; color: var(--ink-faint); margin: 3px 0 14px; }
+      .insp-sep { border: none; border-top: 1px solid var(--line); margin: 0; }
+      .insp-label-line {
+        display: flex; align-items: center; justify-content: space-between;
+        margin-bottom: 2px;
+      }
+      .insp-val {
+        font-size: 12px; font-weight: 500; color: var(--ink-soft);
+        font-variant-numeric: tabular-nums;
+        background: var(--bg); border-radius: 6px; padding: 2px 8px;
+      }
+      .insp-footer {
+        display: flex; align-items: center; justify-content: space-between; gap: 10px;
+        border-top: 1px solid var(--line); padding: 12px 20px;
+      }
+      .insp-footer p { font-size: 12px; color: var(--ink-faint); }
+      .insp-footer .btn { display: inline-flex; align-items: center; gap: 6px; }
+      .insp-footer .btn:disabled { opacity: 0.45; }
+
+      /* готовые цвета — круглые свотчи, активный с кольцом */
+      .swatches { display: flex; gap: 8px; margin-top: 4px; }
+      .swatches button {
+        width: 32px; height: 32px; border-radius: 50%;
+        border: none; background: none; padding: 3px; cursor: pointer;
+        transition: box-shadow 0.15s ease;
+      }
+      .swatches button span {
+        display: block; width: 100%; height: 100%; border-radius: 50%;
+        border: 1px solid rgba(0, 0, 0, 0.1);
+      }
+      .swatches button[aria-pressed="true"] {
+        box-shadow: 0 0 0 2px var(--card), 0 0 0 4px rgba(29, 29, 31, 0.55);
+      }
+
+      /* правая колонка — предпросмотр */
+      .preview-side { display: flex; flex-direction: column; min-width: 0; background: #f0f0f3; }
+      .pv-bar {
+        display: flex; align-items: center; justify-content: space-between; gap: 12px;
+        height: 56px; padding: 0 18px;
+        background: var(--card); border-bottom: 1px solid var(--line);
+        flex-wrap: wrap;
+      }
+      .pv-bar-left { display: flex; align-items: center; gap: 10px; min-width: 0; }
+      .pv-bar h2 { font-size: 14px; font-weight: 600; white-space: nowrap; }
+      .pv-live {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 11.5px; font-weight: 500; color: var(--ink);
+        border: 1px solid var(--line); border-radius: 980px; padding: 2px 10px;
+      }
+      .pv-live-dot {
+        width: 6px; height: 6px; border-radius: 50%; background: var(--accent);
+        animation: pvPulse 2s ease-in-out infinite;
+      }
+      @keyframes pvPulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+      .pv-toggle { display: flex; }
+      .pv-toggle button {
+        display: inline-flex; align-items: center; gap: 6px;
+        font-size: 12.5px; font-weight: 500; color: var(--ink-soft);
+        background: none; border: 1px solid var(--line); padding: 6px 12px;
+        cursor: pointer; transition: background 0.15s ease, color 0.15s ease;
+      }
+      .pv-toggle button:first-child { border-radius: 9px 0 0 9px; }
+      .pv-toggle button:last-child { border-radius: 0 9px 9px 0; border-left: none; }
+      .pv-toggle button[aria-pressed="true"] { background: var(--bg); color: var(--ink); }
+
+      .mini-site-wrap {
+        flex: 1; overflow-y: auto;
+        display: flex; align-items: flex-start; justify-content: center;
+        padding: 28px 24px 40px;
+      }
+      /* рамка «окна браузера» вокруг мини-сайта */
+      .pv-frame {
+        width: 100%; max-width: 1120px;
+        background: var(--card); border: 1px solid var(--line); border-radius: 14px;
+        box-shadow: var(--shadow); overflow: hidden;
+        transition: max-width 0.3s ease;
+      }
+      .mini-site-wrap.mobile .pv-frame { max-width: 400px; }
+      .pv-chrome {
+        display: flex; align-items: center; gap: 14px;
+        height: 40px; padding: 0 14px;
+        background: #f5f5f7; border-bottom: 1px solid var(--line);
+      }
+      .pv-dots { display: flex; gap: 6px; }
+      .pv-dots i { width: 10px; height: 10px; border-radius: 50%; background: #dcdce1; }
+      .pv-addr {
+        flex: 1; min-width: 0; text-align: center;
+        font-size: 11.5px; color: var(--ink-faint);
+        background: var(--card); border-radius: 7px; padding: 4px 12px;
+        white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+      }
+      .pv-zoom { font-size: 11.5px; color: var(--ink-faint); font-variant-numeric: tabular-nums; }
+
+      /* мини-копия публичной страницы; переменные --ms-* выставляет JS */
+      .mini-site {
+        --ms-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+        --ms-accent: #c2410c;
+        --ms-h1: 60px;
+        --ms-h1w: 700;
+        --ms-name: 16px;
+        --ms-namew: 600;
+        width: 100%;
+        max-width: 620px;
+        margin: 0 auto;
+        padding: 34px 26px 38px;
+        text-align: center;
+        font-family: var(--ms-font);
+      }
+      .ms-eyebrow {
+        font-size: 10px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 10px;
+      }
+      .ms-title {
+        font-size: calc(var(--ms-h1) * 0.62); /* масштаб мини-превью */
+        font-weight: var(--ms-h1w);
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        margin-bottom: 10px;
+        transition: font-size 0.15s ease;
+      }
+      .ms-sub {
+        font-size: 13.5px;
+        color: var(--ink-soft);
+        max-width: 400px;
+        margin: 0 auto 22px;
+        text-wrap: balance;
+      }
+      .ms-search {
+        text-align: left;
+        font-size: 12.5px;
+        color: var(--ink-faint);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 980px;
+        padding: 11px 18px;
+        box-shadow: var(--shadow);
+        margin-bottom: 20px;
+      }
+      .ms-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 14px;
+        text-align: left;
+      }
+      .mini-site-wrap.mobile .ms-grid { grid-template-columns: repeat(2, 1fr); }
+      .ms-card { display: flex; flex-direction: column; }
+      .ms-cover {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 12px;
+        background: linear-gradient(135deg, #e8e8ed, #f5f5f7);
+        box-shadow: var(--shadow);
+        margin-bottom: 8px;
+        display: grid;
+        place-items: center;
+      }
+      .ms-stub {
+        font-size: 34px;
+        font-weight: 700;
+        color: var(--ms-accent);
+        opacity: 0.35;
+      }
+      .ms-badge {
+        position: absolute;
+        top: 7px;
+        left: 7px;
+        font-size: 9px;
+        font-weight: 600;
+        padding: 3px 8px;
+        border-radius: 980px;
+        color: #fff;
+        background: color-mix(in srgb, var(--ms-accent) 88%, transparent);
+      }
+      .ms-badge.lock { background: rgba(94, 70, 20, 0.72); }
+      .ms-name {
+        font-size: var(--ms-name);
+        font-weight: var(--ms-namew);
+        line-height: 1.3;
+        letter-spacing: -0.01em;
+        transition: font-size 0.15s ease;
+      }
+      .ms-author { font-size: 11px; color: var(--ink-soft); margin-top: 2px; }
+
+      /* ——— Панель статистики ——— */
+      .stats-panel { max-width: 1280px; margin: 22px auto 0; }
+      .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+      .stats-status {
+        font-size: 13.5px;
+        color: var(--ink-soft);
+        margin-top: 12px;
+        min-height: 18px;
+      }
+      .stats-status.err { color: var(--danger); }
+      .stats-cards { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+      .stat-card {
+        flex: 1 1 140px;
+        background: #fbfbfd;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 14px 18px;
+      }
+      .stat-card .num {
+        font-size: 28px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        font-variant-numeric: tabular-nums;
+      }
+      .stat-card .lbl { font-size: 12.5px; color: var(--ink-faint); margin-top: 2px; }
+      .charts { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; margin-top: 18px; }
+      .chart-box h4 { font-size: 14px; font-weight: 600; color: var(--ink-soft); margin-bottom: 12px; }
+      .daychart { display: flex; align-items: flex-end; gap: 3px; height: 140px; padding-top: 6px; }
+      .daychart .bar {
+        flex: 1;
+        min-width: 4px;
+        background: linear-gradient(180deg, var(--accent), #e8804f);
+        border-radius: 4px 4px 2px 2px;
+        position: relative;
+        transition: opacity 0.15s ease;
+      }
+      .daychart .bar:hover { opacity: 0.75; }
+      .daychart .bar::after {
+        content: attr(data-tip);
+        position: absolute;
+        bottom: calc(100% + 6px);
+        left: 50%;
+        transform: translateX(-50%);
+        background: var(--ink);
+        color: #fff;
+        font-size: 11.5px;
+        padding: 4px 9px;
+        border-radius: 8px;
+        white-space: nowrap;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.15s ease;
+        z-index: 5;
+      }
+      .daychart .bar:hover::after { opacity: 1; }
+      .bookchart { display: flex; flex-direction: column; gap: 8px; }
+      .bookchart .brow {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) auto;
+        gap: 4px 10px;
+        align-items: center;
+        font-size: 13px;
+      }
+      .bookchart .bname { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .bookchart .bval { font-weight: 600; font-variant-numeric: tabular-nums; }
+      .bookchart .btrack {
+        grid-column: 1 / -1;
+        height: 8px;
+        background: var(--bg);
+        border-radius: 980px;
+        overflow: hidden;
+      }
+      .bookchart .bfill {
+        height: 100%;
+        background: linear-gradient(90deg, var(--accent), #e8804f);
+        border-radius: 980px;
+        animation: grow 0.7s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      @keyframes grow { from { width: 0; } }
+
+      /* ——— Модалки ——— */
+      .modal-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.32);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display: none;
+        align-items: center;
+        justify-content: center;
+        padding: 20px;
+        z-index: 50;
+      }
+      .modal-backdrop.open { display: flex; animation: fade 0.2s ease both; }
+      .modal {
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-pop);
+        width: 100%;
+        max-width: 520px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        padding: 26px;
+        animation: pop 0.28s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+      }
+      .modal h3 { font-size: 19px; font-weight: 700; margin-bottom: 18px; letter-spacing: -0.01em; }
+
+      .field { margin-bottom: 16px; }
+      .field label {
+        display: block;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-soft);
+        margin-bottom: 6px;
+      }
+      .field .req { color: var(--danger); }
+      .field input, .field textarea {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: var(--radius-sm);
+        padding: 11px 14px;
+        background: #fbfbfd;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+      }
+      .field textarea { min-height: 80px; resize: vertical; line-height: 1.5; }
+      .field input:focus, .field textarea:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.14);
+        background: #fff;
+      }
+      .field input.invalid { border-color: var(--danger); }
+      .field input.invalid:focus { box-shadow: 0 0 0 4px rgba(215, 0, 21, 0.12); }
+      .field .error { display: none; font-size: 12.5px; color: var(--danger); margin-top: 6px; }
+      .field .error.show { display: block; }
+      .field .warn { display: none; font-size: 12.5px; color: #b25000; margin-top: 6px; }
+      .field .warn.show { display: block; }
+
+      /* визуальный редактор аннотации */
+      .rte { border: 1px solid var(--line); border-radius: var(--radius-sm); overflow: hidden; background: #fff; }
+      .rte:focus-within { border-color: var(--accent); box-shadow: 0 0 0 4px rgba(194, 65, 12, 0.14); }
+      .rte-bar {
+        display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+        padding: 8px 10px; background: #f5f5f7; border-bottom: 1px solid var(--line);
+      }
+      .rte-bar select {
+        border: 1px solid var(--line); border-radius: 8px; padding: 5px 8px;
+        background: #fff; font-size: 13px; max-width: 150px;
+      }
+      .rte-bar button {
+        border: 1px solid var(--line); border-radius: 8px; padding: 5px 10px;
+        background: #fff; font-size: 13px; cursor: pointer; transition: background 0.15s ease;
+      }
+      .rte-bar button:hover { background: #efeff2; }
+      .rte-bar button.on { background: rgba(194, 65, 12, 0.12); border-color: var(--accent); }
+      .rte-sep { width: 1px; height: 20px; background: var(--line); }
+      .rte-area {
+        min-height: 120px; max-height: 300px; overflow-y: auto;
+        padding: 12px 14px; line-height: 1.55; font-size: 14px; outline: none;
+      }
+      .rte-area:empty::before { content: attr(data-placeholder); color: var(--ink-faint); }
+      .rte-area ul { padding-left: 22px; }
+
+      /* загрузка обложки */
+      .cover-drop {
+        display: flex;
+        gap: 14px;
+        align-items: center;
+        border: 1.5px dashed var(--line);
+        border-radius: var(--radius-sm);
+        padding: 14px;
+        cursor: pointer;
+        transition: border-color 0.2s ease, background 0.2s ease;
+        background: #fbfbfd;
+      }
+      .cover-drop:hover { border-color: var(--accent); background: #fff; }
+      .cover-drop .cv {
+        flex: none;
+        width: 60px;
+        height: 80px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, #e8e8ed, #f5f5f7);
+        display: grid;
+        place-items: center;
+        color: var(--ink-faint);
+        overflow: hidden;
+        font-size: 22px;
+      }
+      .cover-drop .cv img { width: 100%; height: 100%; object-fit: cover; }
+      .cover-drop .cv-text { font-size: 13.5px; color: var(--ink-soft); }
+      .cover-drop .cv-text b { color: var(--accent); }
+      .cover-remove {
+        margin-left: auto;
+        flex: none;
+      }
+
+      /* переключатель доступа */
+      .access-toggle { display: flex; gap: 8px; }
+      .access-toggle button {
+        flex: 1;
+        border: 1px solid var(--line);
+        background: #fbfbfd;
+        border-radius: var(--radius-sm);
+        padding: 11px 12px;
+        font-size: 14px;
+        font-weight: 500;
+        color: var(--ink-soft);
+        transition: all 0.2s ease;
+      }
+      .access-toggle button.sel-open {
+        border-color: var(--accent);
+        background: rgba(194, 65, 12, 0.08);
+        color: var(--accent-dark);
+      }
+      .access-toggle button.sel-lock {
+        border-color: #ff9f0a;
+        background: rgba(255, 159, 10, 0.1);
+        color: #9a4a00;
+      }
+
+      /* мини-превью карточки в модалке — стиль сетки публичной страницы */
+      .mini-preview {
+        margin: 4px 0 16px;
+        padding: 14px;
+        background: var(--bg);
+        border-radius: var(--radius-sm);
+      }
+      .mini-preview .cap {
+        font-size: 11.5px;
+        font-weight: 600;
+        letter-spacing: 0.06em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 10px;
+      }
+      .mini-card { width: 150px; }
+      .mini-card .cover {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 12px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #e8e8ed, #f5f5f7);
+        box-shadow: var(--shadow);
+        margin-bottom: 8px;
+      }
+      .mini-card .cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+      .mini-card .stub {
+        position: absolute; inset: 0; display: grid; place-items: center;
+        font-size: 40px; font-weight: 700; color: var(--accent); opacity: 0.35;
+      }
+      .mini-card .badge {
+        position: absolute; top: 8px; left: 8px;
+        font-size: 10px; font-weight: 600; padding: 3px 8px; border-radius: 980px; color: #fff;
+      }
+      .mini-card .badge.open { background: var(--accent); }
+      .mini-card .badge.lock { background: rgba(94, 70, 20, 0.72); }
+      .mini-card .name { font-size: 13.5px; font-weight: 600; line-height: 1.3; }
+      .mini-card .author { font-size: 12px; color: var(--ink-soft); }
+
+      .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 22px; }
+      .confirm-text { font-size: 14.5px; color: var(--ink-soft); }
+
+      /* ——— Тосты ——— */
+      .toasts {
+        position: fixed;
+        bottom: 24px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+        z-index: 100;
+        align-items: center;
+        pointer-events: none;
+      }
+      .toast {
+        background: rgba(29, 29, 31, 0.92);
+        color: #fff;
+        font-size: 13.5px;
+        font-weight: 500;
+        padding: 11px 20px;
+        border-radius: 980px;
+        box-shadow: var(--shadow-pop);
+        animation: toast-in 0.3s cubic-bezier(0.2, 0.9, 0.3, 1.2) both;
+        max-width: calc(100vw - 40px);
+        text-align: center;
+      }
+      .toast.out { animation: toast-out 0.25s ease both; }
+
+      @keyframes fade { from { opacity: 0; } to { opacity: 1; } }
+      @keyframes pop {
+        from { opacity: 0; transform: translateY(14px) scale(0.97); }
+        to { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      @keyframes toast-in {
+        from { opacity: 0; transform: translateY(12px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      @keyframes toast-out {
+        from { opacity: 1; }
+        to { opacity: 0; transform: translateY(8px); }
+      }
+
+      /* ——— Адаптив ——— */
+      @media (max-width: 980px) {
+        .layout { grid-template-columns: 1fr; }
+        .preview-wrap { position: static; }
+        .preview-frame { height: 440px; }
+        .charts, .stats-grid, .two-col { grid-template-columns: 1fr; }
+      }
+      /* сплит-скрин складываем только на телефонах */
+      @media (max-width: 700px) {
+        .design-split { grid-template-columns: 1fr; }
+        .design-split .inspector { border-right: none; border-bottom: 1px solid var(--line); }
+      }
+      @media (max-width: 640px), (pointer: coarse) {
+        .grip { display: none; }
+        .move-btns { display: flex; }
+        .row { cursor: default; }
+      }
+      @media (max-width: 560px) {
+        body { padding: 20px 14px 48px; }
+        .topbar h1 { font-size: 22px; }
+        .panel-body { padding: 16px; }
+        .modal { padding: 20px; }
+      }
+      @media (prefers-reduced-motion: reduce) {
+        * { animation: none !important; transition: none !important; }
+      }
+    </style>
+    <style>
+    .admin-login-shade{position:fixed;inset:0;z-index:10000;display:grid;place-items:center;padding:20px;background:rgba(24,24,27,.88)}
+    .admin-login-card{width:min(100%,420px);padding:32px;background:#fff;border:1px solid #e8e8ed;border-radius:18px;box-shadow:0 24px 80px rgba(0,0,0,.3)}
+    .admin-login-card h1{margin:0 0 8px;font-size:28px;letter-spacing:-.03em;color:#1d1d1f}
+    .admin-login-card p{margin:0 0 22px;color:#6e6e73;line-height:1.5}
+    .admin-login-card label{display:block;margin:14px 0 6px;font-weight:600;color:#1d1d1f}
+    .admin-login-card input{width:100%;padding:12px 14px;border:1px solid #d7d7dc;border-radius:10px;font:inherit;color:#1d1d1f}
+    .admin-login-card input:focus{outline:3px solid rgba(194,65,12,.18);border-color:#c2410c}
+    .admin-login-card button{width:100%;margin-top:20px;min-height:46px}
+    .admin-login-message{min-height:24px;margin:12px 0 0!important;color:#9a3412!important;font-size:14px}
+    #btnLogout{margin-left:8px}
+  </style>
+  <script src="./admin-config.js"></script></head>
+  <body>    <div class="admin-login-shade" id="loginOverlay">
+      <form class="admin-login-card" id="loginForm">
+        <h1>Вход в каталог</h1>
+        <p>Введите общий логин и пароль редакторов.</p>
+        <label for="loginUser">Логин</label>
+        <input id="loginUser" name="username" autocomplete="username" required />
+        <label for="loginPassword">Пароль</label>
+        <input id="loginPassword" name="password" type="password" autocomplete="current-password" required />
+        <button class="btn primary" id="loginSubmit" type="submit">Войти</button>
+        <p class="admin-login-message" id="loginMessage" role="status" aria-live="polite"></p>
+      </form>
+    </div>
+    <header class="topbar">
+      <h1>Менеджер книг</h1>
+      <div class="menu-wrap">
+        <button class="btn" id="btnBackup" type="button" aria-haspopup="true" aria-expanded="false">Резервная копия ▾</button>
+        <div class="menu" id="backupMenu" hidden>
+          <button type="button" id="btnExportJson">Скачать копию</button>
+          <button type="button" id="btnImportJson">Восстановить из копии</button>
+          <div class="menu-sep"></div>
+          <button type="button" id="btnPull">Забрать каталог с сайта</button>
+          <button type="button" id="btnReset" class="menu-danger">Сбросить всё…</button>
+        </div>
+      </div>
+      <button class="btn primary" id="btnPublish" type="button" title="Отправить изменения на сайт">
+        Опубликовать<span class="pending-dot" id="pendingDot" title="Есть изменения — нажмите, чтобы обновить сайт"></span>
+      </button>
+      <input type="file" id="fileInput" accept="application/json,.json" hidden />
+      <button class="btn" id="btnLogout" type="button" hidden>Выйти</button>
+    </header>
+
+    <div class="layout">
+      <div>
+        <section class="panel">
+          <div class="panel-head">
+            <h2>Книги <span id="countLabel" style="color:var(--ink-faint);font-weight:400;"></span></h2>
+            <div class="admin-search">
+              <input type="search" id="adminSearch" placeholder="Фильтр по названию или автору…" aria-label="Фильтр книг" />
+            </div>
+            <button class="btn small" id="btnBulk" type="button">Импорт списком</button>
+            <button class="btn primary small" id="btnAdd" type="button">+ Добавить книгу</button>
+          </div>
+          <div class="panel-body">
+            <div class="rows" id="rows"></div>
+          </div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-head"><h2>Публикация на сайте</h2></div>
+          <div class="panel-body form-grid">
+            <p class="hint">Ты вошёл как <b id="signedInAs">редактор</b>. Изменения отправляются на сайт через общий серверный доступ.</p>
+            <div class="pub-status" id="pubStatus" role="status" aria-live="polite"></div>
+          </div>
+        </section>
+      </div>
+
+      <div class="preview-wrap">
+        <section class="panel">
+          <div class="panel-head"><h2>Живое превью</h2></div>
+          <iframe class="preview-frame" id="preview" title="Превью публичной страницы"></iframe>
+        </section>
+      </div>
+    </div>
+
+    <!-- ——— Тексты и оформление: редактор страницы (настройки слева, живой предпросмотр справа) ——— -->
+    <section class="panel stats-panel design-panel">
+      <div class="design-split">
+        <aside class="inspector">
+          <div class="insp-scroll">
+            <header class="insp-head">
+              <h2>Редактор страницы</h2>
+              <p>Мои книги</p>
+            </header>
+
+            <section class="insp-section">
+              <h3>Тексты</h3>
+              <p class="insp-desc">Заголовок, подзаголовок и метка над ними</p>
+              <div class="insp-row">
+                <label for="siteTitle">Заголовок</label>
+                <input id="siteTitle" type="text" placeholder="Мои книги" />
+              </div>
+              <div class="insp-row">
+                <label for="siteSubtitle">Подзаголовок</label>
+                <input id="siteSubtitle" type="text" placeholder="Всё в одном месте. Нажми — книга откроется на Яндекс.Диске." />
+              </div>
+              <div class="insp-row">
+                <label for="siteEyebrow">Верхняя метка</label>
+                <input id="siteEyebrow" type="text" placeholder="Личная подборка" />
+              </div>
+            </section>
+
+            <hr class="insp-sep" />
+
+            <section class="insp-section">
+              <h3>Типографика</h3>
+              <p class="insp-desc">Шрифт, размеры и насыщенность</p>
+              <div class="insp-row">
+                <label for="siteFont">Шрифт</label>
+                <select id="siteFont">
+                  <option value="system">Системный (System)</option>
+                  <option value="serif">С засечками (Serif)</option>
+                  <option value="rounded">Округлый (Rounded)</option>
+                </select>
+              </div>
+              <div class="insp-row">
+                <div class="insp-label-line">
+                  <label for="titleSize">Размер заголовка</label>
+                  <span class="insp-val"><span id="titleSizeVal">60</span>px</span>
+                </div>
+                <input id="titleSize" type="range" min="34" max="80" step="1" aria-label="Размер заголовка" />
+                <input id="titleSizeNum" type="number" min="34" max="80" step="1" class="num-inp" hidden aria-hidden="true" tabindex="-1" />
+              </div>
+              <div class="insp-row">
+                <label for="titleWeight">Насыщенность заголовка</label>
+                <select id="titleWeight">
+                  <option value="400">Обычный (Regular)</option>
+                  <option value="500">Средний (Medium)</option>
+                  <option value="600">Полужирный (SemiBold)</option>
+                  <option value="700">Жирный (Bold)</option>
+                  <option value="800">Экстра (ExtraBold)</option>
+                </select>
+              </div>
+              <div class="insp-row">
+                <div class="insp-label-line">
+                  <label for="nameSize">Размер названия книги</label>
+                  <span class="insp-val"><span id="nameSizeVal">16</span>px</span>
+                </div>
+                <input id="nameSize" type="range" min="13" max="22" step="1" aria-label="Размер названий книг" />
+                <input id="nameSizeNum" type="number" min="13" max="22" step="1" class="num-inp" hidden aria-hidden="true" tabindex="-1" />
+              </div>
+              <div class="insp-row">
+                <label for="nameWeight">Насыщенность названия книги</label>
+                <select id="nameWeight">
+                  <option value="400">Обычный (Regular)</option>
+                  <option value="500">Средний (Medium)</option>
+                  <option value="600">Полужирный (SemiBold)</option>
+                  <option value="700">Жирный (Bold)</option>
+                </select>
+              </div>
+            </section>
+
+            <hr class="insp-sep" />
+
+            <section class="insp-section">
+              <h3>Цвета</h3>
+              <p class="insp-desc">Акцент для метки и кнопок</p>
+              <div class="insp-row">
+                <label for="accentColor">Акцентный цвет</label>
+                <div class="insp-ctl">
+                  <input id="accentColor" type="color" aria-label="Открыть палитру" />
+                  <input id="accentHex" type="text" class="num-inp hex-inp" maxlength="7" placeholder="#c2410c" aria-label="Акцентный цвет" />
+                </div>
+              </div>
+              <div class="swatches" role="group" aria-label="Готовые цвета" id="swatches">
+                <button type="button" data-color="#c2410c" title="Терракотовый" aria-label="Терракотовый"><span style="background-color:#c2410c"></span></button>
+                <button type="button" data-color="#b45309" title="Янтарный" aria-label="Янтарный"><span style="background-color:#b45309"></span></button>
+                <button type="button" data-color="#0f766e" title="Изумрудный" aria-label="Изумрудный"><span style="background-color:#0f766e"></span></button>
+                <button type="button" data-color="#1d4ed8" title="Синий" aria-label="Синий"><span style="background-color:#1d4ed8"></span></button>
+                <button type="button" data-color="#be123c" title="Малиновый" aria-label="Малиновый"><span style="background-color:#be123c"></span></button>
+                <button type="button" data-color="#292524" title="Графитовый" aria-label="Графитовый"><span style="background-color:#292524"></span></button>
+              </div>
+              <p class="insp-desc" style="margin-top:10px">Используется для верхней метки, обложек и кнопок «Читать».</p>
+            </section>
+          </div>
+          <footer class="insp-footer">
+            <p>Изменения применяются сразу</p>
+            <button type="button" class="btn small" id="btnResetDesign">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>
+              Сбросить
+            </button>
+          </footer>
+        </aside>
+
+        <div class="preview-side">
+          <div class="pv-bar">
+            <div class="pv-bar-left">
+              <h2>Предпросмотр</h2>
+              <span class="pv-live"><span class="pv-live-dot"></span>Live</span>
+            </div>
+            <div class="pv-toggle" role="group" aria-label="Ширина предпросмотра">
+              <button type="button" id="pvDesktop" aria-pressed="true">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="20" height="14" x="2" y="3" rx="2"/><line x1="8" x2="16" y1="21" y2="21"/><line x1="12" x2="12" y1="17" y2="21"/></svg>
+                Десктоп
+              </button>
+              <button type="button" id="pvMobile" aria-pressed="false">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg>
+                Мобильный
+              </button>
+            </div>
+          </div>
+          <div class="mini-site-wrap">
+            <div class="pv-frame" id="pvFrame">
+              <div class="pv-chrome">
+                <span class="pv-dots"><i></i><i></i><i></i></span>
+                <span class="pv-addr">/my-books</span>
+                <span class="pv-zoom">100%</span>
+              </div>
+              <div class="mini-site" id="miniSite">
+                <div class="ms-eyebrow" id="msEyebrow"></div>
+                <div class="ms-title" id="msTitle"></div>
+                <div class="ms-sub" id="msSub"></div>
+                <div class="ms-search">Найти книгу по названию или автору…</div>
+                <div class="ms-grid">
+                  <div class="ms-card">
+                    <span class="ms-cover"><span class="ms-stub">Ч</span><span class="ms-badge">читать</span></span>
+                    <span class="ms-name">Как Чисхан в гости к деду ходил</span>
+                    <span class="ms-author">Л. Винс</span>
+                  </div>
+                  <div class="ms-card">
+                    <span class="ms-cover"><span class="ms-stub">С</span><span class="ms-badge lock">закрытая</span></span>
+                    <span class="ms-name">Сказки алмазной красавицы</span>
+                    <span class="ms-author">Л. Винс</span>
+                  </div>
+                  <div class="ms-card">
+                    <span class="ms-cover"><span class="ms-stub">О</span><span class="ms-badge">читать</span></span>
+                    <span class="ms-name">Отсвет минувших дней</span>
+                    <span class="ms-author">А. М. Григорьев</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ——— Статистика GoatCounter ——— -->
+    <section class="panel stats-panel">
+      <div class="panel-head">
+        <h2>Статистика</h2>
+        <select id="stPeriod" class="btn small" style="border-radius: 10px;">
+          <option value="7">7 дней</option>
+          <option value="30" selected>30 дней</option>
+          <option value="90">90 дней</option>
+        </select>
+        <button class="btn primary small" id="btnLoadStats" type="button">Загрузить статистику</button>
+        <button class="btn small" id="btnStatsCsv" type="button" disabled>Выгрузить в Excel (CSV)</button>
+        <button class="btn small" id="btnStatsDemo" type="button">Пример графиков</button>
+      </div>
+      <div class="panel-body">
+                <div class="stats-setup form-grid" id="statsSetup">
+          <p class="hint">Доступ к статистике настроен на сервере. Редакторам не нужно вводить API-токены.</p>
+        </div><div class="stats-status" id="statsStatus"></div>
+        <div id="statsResult" hidden>
+          <div class="stats-cards" id="statsCards"></div>
+          <div class="charts">
+            <div class="chart-box">
+              <h4>Посетители по дням</h4>
+              <div id="chartDays"></div>
+            </div>
+            <div class="chart-box">
+              <h4>Клики по книгам</h4>
+              <div id="chartBooks"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Модалка добавления / редактирования -->
+    <div class="modal-backdrop" id="editBackdrop">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+        <h3 id="editTitle">Добавить книгу</h3>
+        <form id="editForm" novalidate>
+          <div class="mini-preview">
+            <div class="cap">Так книга будет выглядеть на странице</div>
+            <div id="cardPreview"></div>
+          </div>
+          <div class="field">
+            <label>Обложка</label>
+            <div class="cover-drop" id="coverDrop" role="button" tabindex="0" aria-label="Загрузить обложку">
+              <span class="cv" id="coverThumb">📖</span>
+              <span class="cv-text"><b>Нажмите, чтобы выбрать картинку</b><br />JPG или PNG, сожмётся автоматически</span>
+              <button type="button" class="btn small danger cover-remove" id="coverRemove" hidden>Убрать</button>
+            </div>
+            <input type="file" id="coverInput" accept="image/*" hidden />
+          </div>
+          <div class="field">
+            <label for="fName">Название <span class="req">*</span></label>
+            <input id="fName" type="text" autocomplete="off" placeholder="Как Чисхан в гости к Деду Морозу ходил" />
+            <div class="error" id="errName">Введите название книги.</div>
+          </div>
+          <div class="field">
+            <label for="fAuthor">Автор</label>
+            <input id="fAuthor" type="text" autocomplete="off" placeholder="Л. М. Винс" />
+          </div>
+          <div class="field">
+            <label for="fMeta">Выходные данные</label>
+            <input id="fMeta" type="text" autocomplete="off" placeholder="Мирный, 2013 · 20 с." />
+          </div>
+          <div class="field">
+            <label for="fDescEdit">Аннотация</label>
+            <div class="rte" id="rte">
+              <div class="rte-bar" role="toolbar" aria-label="Форматирование текста">
+                <select id="rteFont" title="Шрифт">
+                  <option value="">Шрифт</option>
+                  <option value="system-ui, sans-serif">Системный</option>
+                  <option value="Georgia, 'Times New Roman', serif">С засечками</option>
+                  <option value="'Trebuchet MS', Verdana, sans-serif">Округлый</option>
+                  <option value="ui-monospace, 'Courier New', monospace">Моноширинный</option>
+                </select>
+                <select id="rteSize" title="Размер">
+                  <option value="">Размер</option>
+                  <option value="13px">13</option>
+                  <option value="14px" selected>14</option>
+                  <option value="16px">16</option>
+                  <option value="18px">18</option>
+                  <option value="20px">20</option>
+                  <option value="24px">24</option>
+                </select>
+                <span class="rte-sep"></span>
+                <button type="button" data-cmd="bold" title="Жирный"><b>Ж</b></button>
+                <button type="button" data-cmd="italic" title="Курсив"><i>К</i></button>
+                <button type="button" data-cmd="underline" title="Подчёркнутый"><u>Ч</u></button>
+                <span class="rte-sep"></span>
+                <button type="button" data-cmd="insertUnorderedList" title="Список">• Список</button>
+                <button type="button" data-cmd="removeFormat" title="Убрать форматирование">Очистить</button>
+              </div>
+              <div class="rte-area" id="fDescEdit" contenteditable="true"
+                   data-placeholder="Короткое описание — о чём книга. Необязательно."></div>
+            </div>
+          </div>
+          <div class="field">
+            <label>Доступ</label>
+            <div class="access-toggle">
+              <button type="button" id="accOpen" class="sel-open">Открытый — есть ссылка</button>
+              <button type="button" id="accLock">Закрытый — только карточка</button>
+            </div>
+          </div>
+          <div class="field" id="urlField">
+            <label for="fUrl">Ссылка на Яндекс.Диск <span class="req">*</span></label>
+            <input id="fUrl" type="url" autocomplete="off" placeholder="https://disk.yandex.ru/…" />
+            <div class="error" id="errUrl">Введите полный адрес https://…</div>
+            <div class="warn" id="warnUrl">
+              Домен не похож на Яндекс.Диск (yandex.ru / yadi.sk). Проверьте ссылку.
+            </div>
+          </div>
+          <div class="modal-actions">
+            <button class="btn" type="button" id="btnCancelEdit">Отмена</button>
+            <button class="btn primary" type="submit" id="btnSaveEdit" disabled>Сохранить</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Модалка массового импорта -->
+    <div class="modal-backdrop" id="bulkBackdrop">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="bulkTitle">
+        <h3 id="bulkTitle">Импорт списком</h3>
+        <p class="confirm-text" style="margin-bottom: 14px;">
+          Одна строка — одна книга: <b>название</b>, затем пробел и <b>ссылка</b>.
+          Строки без ссылки станут книгами с закрытым доступом.
+        </p>
+        <div class="field">
+          <textarea id="bulkText" style="min-height: 180px; font-size: 13px;" placeholder="Винс Л. Как Чисхан в гости к деду ходил https://disk.yandex.ru/i/…&#10;Сказки алмазной красавицы https://disk.yandex.ru/i/…"></textarea>
+        </div>
+        <div class="modal-actions">
+          <button class="btn" type="button" id="btnBulkCancel">Отмена</button>
+          <button class="btn primary" type="button" id="btnBulkOk">Добавить</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Модалка подтверждения -->
+    <div class="modal-backdrop" id="confirmBackdrop">
+      <div class="modal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+        <h3 id="confirmTitle">Подтверждение</h3>
+        <p class="confirm-text" id="confirmText"></p>
+        <div class="modal-actions">
+          <button class="btn" type="button" id="btnConfirmCancel">Отмена</button>
+          <button class="btn danger" type="button" id="btnConfirmOk">Удалить</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="toasts" id="toasts"></div>
+
+    <script>
+      "use strict";
+
+      /* ═══════════════ Шаблон публичной страницы ═══════════════
+         Точная копия site/index.html (подставляется сборочным шагом). */
+      const TEMPLATE = `<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Каталог книг — читайте онлайн, файлы на Яндекс.Диске." />
+    <title>Мои книги</title>
+    <style>
+      :root {
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-soft: #6e6e73;
+        --ink-faint: #86868b;
+        --accent: #c2410c;
+        --accent-dark: #9a3412;
+        --line: #e8e8ed;
+        --radius: 20px;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+        --shadow-hover:
+          0 2px 6px rgba(0, 0, 0, 0.05), 0 20px 44px rgba(0, 0, 0, 0.12);
+        /* настраиваемое из админки */
+        --font-stack:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+        --h1-size: 60px;
+        --h1-weight: 700;
+        --name-size: 16px;
+        --name-weight: 600;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      html,
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-stack);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        line-height: 1.45;
+      }
+
+      ::selection {
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 88px 24px 72px;
+      }
+
+      /* ——— Hero ——— */
+      .hero {
+        text-align: center;
+        max-width: 720px;
+        margin-bottom: 40px;
+        animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      .eyebrow {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 18px;
+      }
+      h1 {
+        font-size: clamp(34px, calc(var(--h1-size) / 60 * 6vw), var(--h1-size));
+        font-weight: var(--h1-weight);
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        margin-bottom: 18px;
+      }
+      .subtitle {
+        font-size: clamp(16px, 2vw, 19px);
+        color: var(--ink-soft);
+        max-width: 560px;
+        margin: 0 auto;
+        text-wrap: balance;
+      }
+
+      /* ——— Поиск ——— */
+      .search {
+        width: 100%;
+        max-width: 1080px;
+        margin-bottom: 34px;
+        animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation-delay: 150ms;
+      }
+      .search input {
+        width: 100%;
+        font: inherit;
+        font-size: clamp(17px, 2vw, 19px);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 980px;
+        padding: 18px 26px 18px 58px;
+        box-shadow: var(--shadow);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="%2386868b" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>');
+        background-repeat: no-repeat;
+        background-position: 22px 50%;
+      }
+      .search input::placeholder {
+        color: var(--ink-faint);
+      }
+      .search input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent),
+          var(--shadow-hover);
+      }
+
+      /* ——— Сетка книг (карточки с обложками, как в книжном магазине) ——— */
+      .books {
+        width: 100%;
+        max-width: 1080px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 22px;
+      }
+
+      .book {
+        display: flex;
+        flex-direction: column;
+        text-decoration: none;
+        color: inherit;
+        font: inherit;
+        text-align: left;
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+        animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation-delay: calc(min(var(--i), 12) * 55ms + 200ms);
+        transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .book:hover {
+        transform: translateY(-5px);
+      }
+      .book:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+        border-radius: 16px;
+      }
+      .book.hidden-by-search {
+        display: none;
+      }
+
+      .cover {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 16px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, #e8e8ed 0%, #f5f5f7 100%);
+        box-shadow: var(--shadow);
+        transition: box-shadow 0.35s ease;
+        margin-bottom: 12px;
+      }
+      .book:hover .cover {
+        box-shadow: var(--shadow-hover);
+      }
+      .cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      .book:hover .cover img {
+        transform: scale(1.04);
+      }
+      /* заглушка без обложки: первая буква названия */
+      .cover .stub {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 56px;
+        font-weight: 700;
+        color: var(--accent);
+        opacity: 0.35;
+        letter-spacing: -0.02em;
+      }
+      .cover .badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        padding: 4px 10px;
+        border-radius: 980px;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .cover .badge.open {
+        color: #fff;
+        background: color-mix(in srgb, var(--accent) 88%, transparent);
+      }
+      .cover .badge.lock {
+        color: #fff;
+        background: rgba(94, 70, 20, 0.72);
+      }
+
+      .book .name {
+        font-size: var(--name-size);
+        font-weight: var(--name-weight);
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 4px;
+      }
+      .book:hover .name {
+        color: var(--accent-dark);
+      }
+      .book .author {
+        font-size: 13.5px;
+        color: var(--ink-soft);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .book .meta {
+        font-size: 12.5px;
+        color: var(--ink-faint);
+        margin-top: 2px;
+      }
+
+      /* ——— Пустые состояния ——— */
+      .empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 15px;
+        padding: 48px 24px;
+        background: var(--card);
+        border: 1px dashed var(--line);
+        border-radius: var(--radius);
+      }
+      .search-empty {
+        display: none;
+        width: 100%;
+        max-width: 1080px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 15px;
+        padding: 40px 24px;
+      }
+      .search-empty.show {
+        display: block;
+      }
+
+      /* ——— Подробный просмотр книги ——— */
+      .detail-backdrop {
+        position: fixed;
+        inset: 0;
+        background: rgba(29, 29, 31, 0.45);
+        backdrop-filter: blur(6px);
+        -webkit-backdrop-filter: blur(6px);
+        display: grid;
+        place-items: center;
+        padding: 20px;
+        z-index: 60;
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.25s ease;
+      }
+      .detail-backdrop.show {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      .detail {
+        width: 100%;
+        max-width: 640px;
+        max-height: calc(100vh - 40px);
+        overflow-y: auto;
+        background: var(--card);
+        border-radius: var(--radius);
+        box-shadow: var(--shadow-hover);
+        padding: 28px;
+        display: grid;
+        grid-template-columns: 168px 1fr;
+        gap: 24px;
+        transform: translateY(14px) scale(0.98);
+        transition: transform 0.3s cubic-bezier(0.2, 0.7, 0.2, 1);
+        position: relative;
+      }
+      .detail-backdrop.show .detail {
+        transform: none;
+      }
+      .detail .d-cover {
+        aspect-ratio: 3 / 4;
+        border-radius: 14px;
+        overflow: hidden;
+        background: linear-gradient(135deg, #e8e8ed 0%, #f5f5f7 100%);
+        box-shadow: var(--shadow);
+        display: grid;
+        place-items: center;
+      }
+      .detail .d-cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+      }
+      .detail .d-cover .stub {
+        font-size: 52px;
+        font-weight: 700;
+        color: var(--accent);
+        opacity: 0.35;
+      }
+      .detail .d-name {
+        font-size: 24px;
+        font-weight: 700;
+        letter-spacing: -0.02em;
+        line-height: 1.15;
+        margin-bottom: 6px;
+      }
+      .detail .d-author {
+        font-size: 15px;
+        color: var(--ink-soft);
+        margin-bottom: 2px;
+      }
+      .detail .d-meta {
+        font-size: 13px;
+        color: var(--ink-faint);
+        margin-bottom: 16px;
+      }
+      .detail .d-desc {
+        font-size: 14.5px;
+        line-height: 1.6;
+        color: var(--ink);
+        margin-bottom: 20px;
+      }
+      .detail .d-desc:empty {
+        display: none;
+      }
+      .detail .d-desc ul,
+      .detail .d-desc ol {
+        padding-left: 22px;
+      }
+      .detail .d-read {
+        display: inline-block;
+        font: inherit;
+        font-weight: 600;
+        font-size: 15px;
+        color: #fff;
+        background: var(--accent);
+        text-decoration: none;
+        border-radius: 980px;
+        padding: 12px 26px;
+        transition: background 0.2s ease, transform 0.2s ease;
+      }
+      .detail .d-read:hover {
+        background: var(--accent-dark);
+        transform: translateY(-1px);
+      }
+      .detail .d-closed {
+        display: inline-block;
+        font-size: 14px;
+        color: var(--ink-faint);
+        border: 1px dashed var(--line);
+        border-radius: 980px;
+        padding: 10px 22px;
+      }
+      .detail .d-close {
+        position: absolute;
+        top: 14px;
+        right: 14px;
+        width: 34px;
+        height: 34px;
+        border: none;
+        border-radius: 50%;
+        background: #f0f0f3;
+        color: var(--ink-soft);
+        font-size: 17px;
+        cursor: pointer;
+        display: grid;
+        place-items: center;
+        transition: background 0.2s ease;
+      }
+      .detail .d-close:hover {
+        background: #e4e4e9;
+      }
+      @media (max-width: 560px) {
+        .detail {
+          grid-template-columns: 1fr;
+          padding: 22px;
+        }
+        .detail .d-cover {
+          max-width: 200px;
+        }
+      }
+
+      /* ——— Footer ——— */
+      footer {
+        margin-top: 80px;
+        font-size: 13px;
+        color: var(--ink-faint);
+        text-align: center;
+        letter-spacing: 0.01em;
+      }
+      footer a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        border-bottom: 1px solid #d2d2d7;
+        transition:
+          color 0.2s ease,
+          border-color 0.2s ease;
+      }
+      footer a:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+
+      /* ——— Animations ——— */
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ——— Mobile ——— */
+      @media (max-width: 560px) {
+        body {
+          padding: 56px 16px 48px;
+        }
+        .books {
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 16px;
+        }
+        .hero {
+          margin-bottom: 32px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <span class="eyebrow" id="siteEyebrow"></span>
+      <h1 id="siteTitle"></h1>
+      <p class="subtitle" id="siteSubtitle"></p>
+    </header>
+
+    <div class="search">
+      <input
+        type="search"
+        id="searchInput"
+        placeholder="Найти книгу по названию или автору…"
+        aria-label="Поиск книги по названию или автору"
+      />
+    </div>
+
+    <main class="books" id="books"></main>
+    <div class="search-empty" id="searchEmpty">Ничего не найдено. Попробуйте другой запрос.</div>
+
+    <!-- Подробный просмотр книги -->
+    <div class="detail-backdrop" id="detailBackdrop">
+      <div class="detail" role="dialog" aria-modal="true" aria-labelledby="dName">
+        <button class="d-close" id="detailClose" aria-label="Закрыть">✕</button>
+        <div class="d-cover" id="dCover"></div>
+        <div>
+          <div class="d-name" id="dName"></div>
+          <div class="d-author" id="dAuthor"></div>
+          <div class="d-meta" id="dMeta"></div>
+          <div class="d-desc" id="dDesc"></div>
+          <span id="dAction"></span>
+        </div>
+      </div>
+    </div>
+
+    <footer>
+      Книги хранятся на
+      <a href="https://disk.yandex.ru" target="_blank" rel="noopener"
+        >Яндекс.Диске</a
+      >
+    </footer>
+
+    <script>
+      /* Встроенный снимок данных: страница работает, даже если books.json
+         ещё не загрузился. Админка обновляет этот блок при публикации. */
+      const EMBEDDED = /*DATA_PLACEHOLDER*/null;
+
+      /* Шрифтовые темы — выбираются в админке */
+      const FONT_STACKS = {
+        system:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        serif: 'Georgia, "Times New Roman", "PT Serif", serif',
+        rounded:
+          'ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif',
+      };
+
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+
+      /* Применяем тексты и оформление */
+      function applySite(site) {
+        const s = site || {};
+        document.getElementById("siteEyebrow").textContent =
+          s.eyebrow || "Личная подборка";
+        document.getElementById("siteTitle").textContent =
+          s.title || "Мои книги";
+        document.getElementById("siteSubtitle").textContent =
+          s.subtitle || "Всё в одном месте. Нажми — книга откроется.";
+        document.title = s.title || "Мои книги";
+        const root = document.documentElement.style;
+        root.setProperty("--font-stack", FONT_STACKS[s.font] || FONT_STACKS.system);
+        if (s.titleSize) root.setProperty("--h1-size", s.titleSize + "px");
+        if (s.titleWeight) root.setProperty("--h1-weight", s.titleWeight);
+        if (s.nameSize) root.setProperty("--name-size", s.nameSize + "px");
+        if (s.nameWeight) root.setProperty("--name-weight", s.nameWeight);
+        if (s.accent) {
+          root.setProperty("--accent", s.accent);
+          /* тёмный вариант акцента для hover-состояний */
+          root.setProperty("--accent-dark", s.accent);
+        }
+      }
+
+      /* Очистка аннотации от чужеродной разметки: белый список тегов,
+         никаких скриптов и обработчиков — только простое форматирование. */
+      function sanitizeRich(html) {
+        const ALLOWED = {
+          B: 1, STRONG: 1, I: 1, EM: 1, U: 1, BR: 1, P: 1, DIV: 1,
+          UL: 1, OL: 1, LI: 1, SPAN: 1,
+        };
+        const doc = new DOMParser().parseFromString(String(html || ""), "text/html");
+        (function walk(node) {
+          [...node.children].forEach((el) => {
+            if (!ALLOWED[el.tagName]) {
+              el.replaceWith(...[...el.childNodes]);
+              return;
+            }
+            [...el.attributes].forEach((a) => {
+              if (a.name.toLowerCase() === "style") {
+                const ff = el.style.fontFamily, fs = el.style.fontSize;
+                el.removeAttribute("style");
+                let keep = "";
+                if (ff) keep += "font-family:" + ff.replace(/[";<>]/g, "") + ";";
+                if (fs && /^\\d{1,2}(\\.\\d+)?(px|em|rem|%)$/.test(fs)) keep += "font-size:" + fs + ";";
+                if (keep) el.setAttribute("style", keep);
+              } else {
+                el.removeAttribute(a.name);
+              }
+            });
+            if (el.isConnected) walk(el);
+          });
+        })(doc.body);
+        return doc.body.innerHTML.trim();
+      }
+
+      /* Текст аннотации без тегов — для поиска */
+      const plainText = (html) => {
+        const d = document.createElement("div");
+        d.innerHTML = sanitizeRich(html);
+        return d.textContent || "";
+      };
+
+      /* Карточка книги: клик открывает подробный просмотр с аннотацией. */
+      function cardHtml(b, i) {
+        const isOpen = b.access !== "closed" && b.url;
+        const coverInner = b.cover
+          ? \`<img src="\${esc(b.cover)}" alt="Обложка «\${esc(b.name)}»" loading="lazy" />\`
+          : \`<span class="stub" aria-hidden="true">\${esc((b.name || "?").trim().charAt(0).toUpperCase())}</span>\`;
+        const search = esc(
+          (
+            b.name + " " + (b.author || "") + " " +
+            plainText(b.description) + " " + (b.meta || "")
+          ).toLowerCase(),
+        );
+        return \`
+  <button class="book" type="button" data-idx="\${i}" data-search="\${search}"
+     aria-label="Подробнее о книге «\${esc(b.name)}»" style="--i:\${i}">
+      <span class="cover">
+        \${coverInner}
+        <span class="badge \${isOpen ? "open" : "lock"}">\${isOpen ? "читать" : "закрытая"}</span>
+      </span>
+      <span class="name">\${esc(b.name)}</span>
+      \${b.author ? \`<span class="author">\${esc(b.author)}</span>\` : ""}
+      \${b.meta ? \`<span class="meta">\${esc(b.meta)}</span>\` : ""}
+  </button>\`;
+      }
+
+      /* ── Подробный просмотр ── */
+      const detailBackdrop = document.getElementById("detailBackdrop");
+      let currentBooks = [];
+
+      function openDetail(b) {
+        document.getElementById("dCover").innerHTML = b.cover
+          ? \`<img src="\${esc(b.cover)}" alt="Обложка «\${esc(b.name)}»" />\`
+          : \`<span class="stub">\${esc((b.name || "?").trim().charAt(0).toUpperCase())}</span>\`;
+        document.getElementById("dName").textContent = b.name || "";
+        document.getElementById("dAuthor").textContent = b.author || "";
+        document.getElementById("dMeta").textContent = b.meta || "";
+        document.getElementById("dDesc").innerHTML = sanitizeRich(b.description);
+        const isOpen = b.access !== "closed" && b.url;
+        /* трекинг клика GoatCounter переехал на кнопку «Читать» */
+        document.getElementById("dAction").innerHTML = isOpen
+          ? \`<a class="d-read" href="\${esc(b.url)}" target="_blank" rel="noopener"
+               data-goatcounter-click="open-book: \${esc(b.name)}"
+               data-goatcounter-title="Открыли книгу: \${esc(b.name)}">Читать на Яндекс.Диске</a>\`
+          : \`<span class="d-closed">Книга пока закрыта для чтения</span>\`;
+        detailBackdrop.classList.add("show");
+        document.body.style.overflow = "hidden";
+        if (window.goatcounter && window.goatcounter.bind_events) {
+          window.goatcounter.bind_events();
+        }
+      }
+      function closeDetail() {
+        detailBackdrop.classList.remove("show");
+        document.body.style.overflow = "";
+      }
+      document.getElementById("detailClose").addEventListener("click", closeDetail);
+      detailBackdrop.addEventListener("click", (e) => {
+        if (e.target === detailBackdrop) closeDetail();
+      });
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") closeDetail();
+      });
+
+      function render(data) {
+        applySite(data.site);
+        const books = data.books || [];
+        currentBooks = books;
+        const booksEl = document.getElementById("books");
+        const searchInput = document.getElementById("searchInput");
+        const searchEmpty = document.getElementById("searchEmpty");
+        if (books.length === 0) {
+          booksEl.innerHTML =
+            '<div class="empty">Пока здесь пусто — книги скоро появятся.</div>';
+          return;
+        }
+        booksEl.innerHTML = books.map(cardHtml).join("");
+        /* клик по карточке → подробный просмотр (слушатель вешается один раз) */
+        if (!booksEl.dataset.clickBound) {
+          booksEl.dataset.clickBound = "1";
+          booksEl.addEventListener("click", (e) => {
+            const card = e.target.closest(".book[data-idx]");
+            if (card && currentBooks[+card.dataset.idx])
+              openDetail(currentBooks[+card.dataset.idx]);
+          });
+        }
+        /* поиск всегда активен: ищет по названию, автору, аннотации */
+        searchInput.addEventListener("input", () => {
+          const q = searchInput.value.trim().toLowerCase();
+          let visible = 0;
+          booksEl.querySelectorAll("[data-search]").forEach((el) => {
+            const hit = !q || el.dataset.search.includes(q);
+            el.classList.toggle("hidden-by-search", !hit);
+            if (hit) visible++;
+          });
+          searchEmpty.classList.toggle("show", visible === 0);
+        });
+      }
+
+      /* Сначала встроенный снимок (мгновенный показ), затем свежий books.json */
+      if (EMBEDDED) render(EMBEDDED);
+      fetch("books.json?_=" + Date.now(), { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.books)) render(data);
+        })
+        .catch(() => {
+          /* офлайн или books.json ещё не создан — остаётся встроенный снимок */
+          if (!EMBEDDED) render({ books: [] });
+        });
+    <\/script>
+
+    <!-- Счётчик GoatCounter -->
+    <script
+      data-goatcounter="https://lana.goatcounter.com/count"
+      async
+      src="//gc.zgo.at/count.js"
+    ><\/script>
+  </body>
+</html>
+`;
+
+      /* ═══════════════ Состояние ═══════════════ */
+      const LS_BOOKS = "bookmgr.books.v1";
+      const LS_SITE = "bookmgr.site.v1";
+      const LS_PUB = "bookmgr.publish.v1";
+      const LS_ST = "bookmgr.stats.v1";
+      const LS_EXPORTED = "bookmgr.publishedHash.v1";
+
+      const DEFAULT_SITE = {
+        eyebrow: "Личная подборка",
+        title: "Мои книги",
+        subtitle: "Всё в одном месте. Нажми — книга откроется на Яндекс.Диске.",
+        font: "system",
+        titleSize: 60,
+        titleWeight: 700,
+        nameSize: 16,
+        nameWeight: 600,
+        accent: "#c2410c",
+      };
+
+      /** @type {{id,name,author,meta,description,access,url,cover}[]} */
+      let books = [];
+      let site = { ...DEFAULT_SITE };
+      let editingId = null; // null = режим добавления
+      let editingAccess = "open";
+      let editingCoverDirty = false; // обложка изменена — надо залить при публикации
+      let dragId = null;
+
+      /* ═══════════════ DOM-ссылки ═══════════════ */
+      const $ = (id) => document.getElementById(id);
+      const rowsEl = $("rows");
+      const previewEl = $("preview");
+      const pendingDot = $("pendingDot");
+      const toastsEl = $("toasts");
+      const adminSearch = $("adminSearch");
+      const countLabel = $("countLabel");
+
+      const editBackdrop = $("editBackdrop");
+      const editForm = $("editForm");
+      const editTitle = $("editTitle");
+      const fName = $("fName");
+      const fAuthor = $("fAuthor");
+      const fMeta = $("fMeta");
+      const fDesc = $("fDescEdit"); /* contenteditable-редактор аннотации */
+      const fUrl = $("fUrl");
+      const urlField = $("urlField");
+      const errName = $("errName");
+      const errUrl = $("errUrl");
+      const warnUrl = $("warnUrl");
+      const btnSaveEdit = $("btnSaveEdit");
+      const accOpen = $("accOpen");
+      const accLock = $("accLock");
+      const cardPreview = $("cardPreview");
+      const coverDrop = $("coverDrop");
+      const coverInput = $("coverInput");
+      const coverThumb = $("coverThumb");
+      const coverRemove = $("coverRemove");
+
+      const bulkBackdrop = $("bulkBackdrop");
+      const bulkText = $("bulkText");
+
+      const confirmBackdrop = $("confirmBackdrop");
+      const confirmTitle = $("confirmTitle");
+      const confirmText = $("confirmText");
+      const btnConfirmOk = $("btnConfirmOk");
+      let confirmAction = null;
+
+      const pubStatus = $("pubStatus");
+
+      /* ═══════════════ Утилиты ═══════════════ */
+
+      function uuid() {
+        if (crypto.randomUUID) return crypto.randomUUID();
+        return "xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx".replace(/[xy]/g, (c) => {
+          const r = (Math.random() * 16) | 0;
+          return (c === "x" ? r : (r & 0x3) | 0x8).toString(16);
+        });
+      }
+
+      function toast(msg) {
+        const el = document.createElement("div");
+        el.className = "toast";
+        el.textContent = msg;
+        toastsEl.appendChild(el);
+        setTimeout(() => el.classList.add("out"), 2200);
+        setTimeout(() => el.remove(), 2500);
+      }
+
+      function escapeHtml(s) {
+        return String(s).replace(/[&<>"']/g, (c) =>
+          ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c],
+        );
+      }
+
+      function isValidUrl(s) {
+        try {
+          const u = new URL(s);
+          return u.protocol === "http:" || u.protocol === "https:";
+        } catch {
+          return false;
+        }
+      }
+
+      function isYandexUrl(s) {
+        try {
+          const host = new URL(s).hostname;
+          return (
+            host === "yadi.sk" ||
+            host === "yandex.ru" ||
+            host.endsWith(".yandex.ru") ||
+            host.endsWith(".yandex.com")
+          );
+        } catch {
+          return false;
+        }
+      }
+
+      function download(filename, content, mime) {
+        const blob = content instanceof Blob ? content : new Blob([content], { type: mime });
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        setTimeout(() => {
+          URL.revokeObjectURL(a.href);
+          a.remove();
+        }, 100);
+      }
+
+      function blobToBase64(blob) {
+        return new Promise((resolve, reject) => {
+          const r = new FileReader();
+          r.onload = () => resolve(r.result.split(",")[1]);
+          r.onerror = reject;
+          r.readAsDataURL(blob);
+        });
+      }
+
+      function stateHash() {
+        return JSON.stringify({ books, site });
+      }
+
+      function normalizeBook(b) {
+        return {
+          id: typeof b.id === "string" && b.id ? b.id : uuid(),
+          name: String(b.name || ""),
+          author: typeof b.author === "string" ? b.author : "",
+          meta: typeof b.meta === "string" ? b.meta : "",
+          description: typeof b.description === "string" ? b.description : "",
+          access: b.access === "closed" ? "closed" : "open",
+          url: typeof b.url === "string" ? b.url : "",
+          cover: typeof b.cover === "string" ? b.cover : "",
+        };
+      }
+
+      /* ═══════════════ Обложки: локальное хранилище IndexedDB ═══════════════
+         Картинки могут весить много, поэтому лежат не в localStorage,
+         а в IndexedDB (хранилище браузера для больших данных). */
+      let idb = null;
+      function idbOpen() {
+        return new Promise((resolve, reject) => {
+          const req = indexedDB.open("bookmgr", 1);
+          req.onupgradeneeded = () =>
+            req.result.createObjectStore("covers", { keyPath: "id" });
+          req.onsuccess = () => resolve(req.result);
+          req.onerror = () => reject(req.error);
+        });
+      }
+      async function idbStore(mode, fn) {
+        if (!idb) idb = await idbOpen();
+        return new Promise((resolve, reject) => {
+          const tx = idb.transaction("covers", mode);
+          const res = fn(tx.objectStore("covers"));
+          tx.oncomplete = () => resolve(res && res.result);
+          tx.onerror = () => reject(tx.error);
+        });
+      }
+      const coverPut = (id, blob) => idbStore("readwrite", (s) => s.put({ id, blob }));
+      const coverDel = (id) => idbStore("readwrite", (s) => s.delete(id));
+      const coverGet = (id) =>
+        idbStore("readonly", (s) => s.get(id)).then((r) => (r ? r.blob : null));
+
+      /* Сжатие обложки: максимум 600px по ширине, JPEG. */
+      function compressImage(file) {
+        return new Promise((resolve, reject) => {
+          const img = new Image();
+          img.onload = () => {
+            const scale = Math.min(1, 600 / img.width);
+            const w = Math.round(img.width * scale);
+            const h = Math.round(img.height * scale);
+            const c = document.createElement("canvas");
+            c.width = w;
+            c.height = h;
+            c.getContext("2d").drawImage(img, 0, 0, w, h);
+            c.toBlob((b) => (b ? resolve(b) : reject(new Error("encode"))), "image/jpeg", 0.85);
+            URL.revokeObjectURL(img.src);
+          };
+          img.onerror = () => reject(new Error("not an image"));
+          img.src = URL.createObjectURL(file);
+        });
+      }
+
+      /* URL обложки для превью: из IndexedDB (локальная) или путь с сайта */
+      const blobUrlCache = new Map();
+      async function coverUrl(book) {
+        if (!book.cover) return null;
+        if (blobUrlCache.has(book.id)) return blobUrlCache.get(book.id);
+        const blob = await coverGet(book.id).catch(() => null);
+        if (blob) {
+          const u = URL.createObjectURL(blob);
+          blobUrlCache.set(book.id, u);
+          return u;
+        }
+        return book.cover; // путь с сайта (для превью после pull)
+      }
+
+      /* ═══════════════ Хранение ═══════════════ */
+      function save() {
+        try {
+          localStorage.setItem(LS_BOOKS, JSON.stringify(books));
+          localStorage.setItem(LS_SITE, JSON.stringify(site));
+        } catch (e) {
+          toast("Не удалось сохранить в localStorage");
+        }
+        updateDirty();
+      }
+
+      function load() {
+        try {
+          const raw = localStorage.getItem(LS_BOOKS);
+          if (raw) {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) {
+              books = parsed
+                .filter((b) => b && typeof b === "object" && typeof b.name === "string")
+                .map(normalizeBook);
+            }
+          }
+          const rawSite = localStorage.getItem(LS_SITE);
+          if (rawSite) site = { ...DEFAULT_SITE, ...JSON.parse(rawSite) };
+          localStorage.removeItem(LS_PUB);
+          localStorage.removeItem(LS_ST);
+        } catch {
+          books = [];
+        }
+        fillSiteForm();
+      }
+
+      function fillSiteForm() {
+        $("siteTitle").value = site.title;
+        $("siteSubtitle").value = site.subtitle;
+        $("siteEyebrow").value = site.eyebrow;
+        $("siteFont").value = site.font;
+        $("titleSize").value = site.titleSize;
+        $("titleSizeNum").value = site.titleSize;
+        $("titleWeight").value = String(site.titleWeight);
+        $("nameSize").value = site.nameSize;
+        $("nameSizeNum").value = site.nameSize;
+        $("nameWeight").value = String(site.nameWeight);
+        $("accentColor").value = site.accent;
+        $("accentHex").value = site.accent;
+        updateMini();
+      }
+
+      /* чипы «60px» рядом с ползунками + состояние кнопки «Сбросить» */
+      function refreshDesignChrome() {
+        $("titleSizeVal").textContent = site.titleSize;
+        $("nameSizeVal").textContent = site.nameSize;
+        document.querySelectorAll("#swatches button").forEach((b) =>
+          b.setAttribute("aria-pressed", String(b.dataset.color === site.accent)),
+        );
+        const isDefault = Object.keys(DEFAULT_SITE).every(
+          (k) => String(DEFAULT_SITE[k]) === String(site[k]),
+        );
+        $("btnResetDesign").disabled = isDefault;
+      }
+
+      /* Живой мини-предпросмотр: применяет site к #miniSite мгновенно,
+         без iframe и без сохранения */
+      const FONT_STACKS_ADMIN = {
+        system:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        serif: 'Georgia, "Times New Roman", "PT Serif", serif',
+        rounded: 'ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif',
+      };
+      function updateMini() {
+        const ms = $("miniSite").style;
+        ms.setProperty("--ms-font", FONT_STACKS_ADMIN[site.font] || FONT_STACKS_ADMIN.system);
+        ms.setProperty("--ms-accent", site.accent);
+        ms.setProperty("--ms-h1", site.titleSize + "px");
+        ms.setProperty("--ms-h1w", site.titleWeight);
+        ms.setProperty("--ms-name", site.nameSize + "px");
+        ms.setProperty("--ms-namew", site.nameWeight);
+        $("msTitle").textContent = site.title;
+        $("msSub").textContent = site.subtitle;
+        $("msEyebrow").textContent = site.eyebrow;
+        refreshDesignChrome();
+      }
+
+      function updateDirty() {
+        const exported = localStorage.getItem(LS_EXPORTED);
+        pendingDot.classList.toggle("on", exported !== stateHash());
+      }
+
+      /* ═══════════════ Генерация публичной страницы ═══════════════ */
+      function catalogData() {
+        return { site, books };
+      }
+
+      // Превью: подменяем пути обложек на локальные blob-URL
+      async function renderPreview() {
+        const data = catalogData();
+        const withLocal = {
+          site: data.site,
+          books: await Promise.all(
+            data.books.map(async (b) => ({
+              ...b,
+              cover: (await coverUrl(b)) || "",
+            })),
+          ),
+        };
+        /* В превью books.json с сервера не нужен — заменяем загрузку на
+           пустой data-ответ, чтобы iframe не перезаписывал встроенный снимок */
+        previewEl.srcdoc = TEMPLATE.replace(
+          "/*DATA_PLACEHOLDER*/null",
+          JSON.stringify(withLocal, null, 2),
+        ).replace(
+          'fetch("books.json?_="',
+          'fetch("data:application/json,%7B%7D?_="',
+        );
+      }
+
+      /* ═══════════════ Рендер списка ═══════════════ */
+      const GRIP_SVG =
+        '<svg width="12" height="18" viewBox="0 0 12 18" fill="currentColor">' +
+        '<circle cx="3" cy="3" r="1.6"/><circle cx="9" cy="3" r="1.6"/>' +
+        '<circle cx="3" cy="9" r="1.6"/><circle cx="9" cy="9" r="1.6"/>' +
+        '<circle cx="3" cy="15" r="1.6"/><circle cx="9" cy="15" r="1.6"/></svg>';
+      const EDIT_SVG =
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 3a2.8 2.8 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/></svg>';
+      const TRASH_SVG =
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M19 6l-1 14H6L5 6"/><path d="M10 11v6M14 11v6"/></svg>';
+      const DUP_SVG =
+        '<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h10"/></svg>';
+      const UP_SVG =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>';
+      const DOWN_SVG =
+        '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="M19 12l-7 7-7-7"/></svg>';
+
+      async function renderRows() {
+        countLabel.textContent = books.length ? `(${books.length})` : "";
+        if (books.length === 0) {
+          rowsEl.innerHTML =
+            '<div class="empty-box">Пока нет книг. Нажми «Добавить» или «Импорт списком», чтобы начать.</div>';
+          return;
+        }
+        rowsEl.innerHTML = "";
+        for (const [i, b] of books.entries()) {
+          const isOpen = b.access !== "closed" && b.url;
+          const row = document.createElement("div");
+          row.className = "row";
+          row.draggable = true;
+          row.tabIndex = 0;
+          row.dataset.id = b.id;
+          row.dataset.search = (b.name + " " + b.author).toLowerCase();
+          row.setAttribute("role", "button");
+          row.setAttribute("aria-label", `Редактировать «${b.name}»`);
+          const subtitle = [b.author, b.meta, isOpen ? b.url : "без ссылки"]
+            .filter(Boolean)
+            .join(" · ");
+          const coverU = await coverUrl(b);
+          row.innerHTML = `
+            <span class="grip" aria-hidden="true">${GRIP_SVG}</span>
+            <span class="row-order">${i + 1}</span>
+            <span class="thumb">${coverU ? `<img src="${coverU}" alt="" />` : escapeHtml((b.name || "?").trim().charAt(0).toUpperCase())}</span>
+            <div class="row-main">
+              <div class="row-name">${escapeHtml(b.name)}</div>
+              <div class="row-meta">${escapeHtml(subtitle)}</div>
+            </div>
+            <span class="row-badge ${isOpen ? "open" : "lock"}">${isOpen ? "открыта" : "закрыта"}</span>
+            <div class="row-actions">
+              <span class="move-btns">
+                <button class="icon-btn" data-act="up" title="Выше" aria-label="Переместить выше" ${i === 0 ? "disabled" : ""}>${UP_SVG}</button>
+                <button class="icon-btn" data-act="down" title="Ниже" aria-label="Переместить ниже" ${i === books.length - 1 ? "disabled" : ""}>${DOWN_SVG}</button>
+              </span>
+              <button class="icon-btn" data-act="dup" title="Дублировать" aria-label="Дублировать">${DUP_SVG}</button>
+              <button class="icon-btn" data-act="edit" title="Редактировать" aria-label="Редактировать">${EDIT_SVG}</button>
+              <button class="icon-btn danger" data-act="del" title="Удалить" aria-label="Удалить">${TRASH_SVG}</button>
+            </div>`;
+
+          row.addEventListener("click", (e) => {
+            if (e.target.closest("button")) return;
+            openEdit(b.id);
+          });
+          row.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" && e.target === row) openEdit(b.id);
+          });
+
+          /* ——— Drag & drop ——— */
+          row.addEventListener("dragstart", (e) => {
+            dragId = b.id;
+            row.classList.add("dragging");
+            e.dataTransfer.effectAllowed = "move";
+            e.dataTransfer.setData("text/plain", b.id);
+          });
+          row.addEventListener("dragend", () => {
+            dragId = null;
+            rowsEl.querySelectorAll(".row").forEach((r) =>
+              r.classList.remove("dragging", "drop-target"),
+            );
+          });
+          row.addEventListener("dragover", (e) => {
+            e.preventDefault();
+            e.dataTransfer.dropEffect = "move";
+            if (b.id !== dragId) row.classList.add("drop-target");
+          });
+          row.addEventListener("dragleave", () => row.classList.remove("drop-target"));
+          row.addEventListener("drop", (e) => {
+            e.preventDefault();
+            row.classList.remove("drop-target");
+            const fromId = e.dataTransfer.getData("text/plain");
+            if (!fromId || fromId === b.id) return;
+            const from = books.findIndex((x) => x.id === fromId);
+            const to = books.findIndex((x) => x.id === b.id);
+            if (from < 0 || to < 0) return;
+            const [moved] = books.splice(from, 1);
+            books.splice(to, 0, moved);
+            afterChange("Порядок обновлён");
+          });
+
+          rowsEl.appendChild(row);
+        }
+        applyAdminFilter();
+      }
+
+      // Делегирование кнопок внутри строк
+      rowsEl.addEventListener("click", async (e) => {
+        const btn = e.target.closest("button[data-act]");
+        if (!btn || btn.disabled) return;
+        e.stopPropagation();
+        const id = btn.closest(".row").dataset.id;
+        const i = books.findIndex((x) => x.id === id);
+        if (i < 0) return;
+        const act = btn.dataset.act;
+        if (act === "edit") openEdit(id);
+        else if (act === "del") askDelete(books[i]);
+        else if (act === "dup") {
+          const copy = { ...books[i], id: uuid(), name: books[i].name + " (копия)", cover: "" };
+          // обложку копии дублируем отдельной записью
+          const blob = await coverGet(books[i].id).catch(() => null);
+          if (blob && books[i].cover) {
+            copy.cover = "covers/" + copy.id + ".jpg";
+            await coverPut(copy.id, blob).catch(() => {});
+          }
+          books.splice(i + 1, 0, copy);
+          afterChange("Копия создана");
+        } else if (act === "up" && i > 0) {
+          [books[i - 1], books[i]] = [books[i], books[i - 1]];
+          afterChange("Порядок обновлён");
+        } else if (act === "down" && i < books.length - 1) {
+          [books[i + 1], books[i]] = [books[i], books[i + 1]];
+          afterChange("Порядок обновлён");
+        }
+      });
+
+      function applyAdminFilter() {
+        const q = adminSearch.value.trim().toLowerCase();
+        rowsEl.querySelectorAll(".row").forEach((r) => {
+          r.classList.toggle("filtered-out", !!q && !r.dataset.search.includes(q));
+        });
+      }
+      adminSearch.addEventListener("input", applyAdminFilter);
+
+      function afterChange(msg) {
+        save();
+        renderRows();
+        renderPreview();
+        if (msg) toast(msg);
+      }
+
+      /* ═══════════════ Мини-превью карточки в модалке ═══════════════ */
+      let editingCoverUrl = null; // blob/data URL выбранной обложки
+
+      function renderCardPreview() {
+        const isOpen = editingAccess !== "closed" && fUrl.value.trim();
+        const letter = (fName.value.trim() || "?").charAt(0).toUpperCase();
+        cardPreview.innerHTML = `
+          <div class="mini-card">
+            <span class="cover">
+              ${editingCoverUrl ? `<img src="${editingCoverUrl}" alt="" />` : `<span class="stub">${escapeHtml(letter)}</span>`}
+              <span class="badge ${isOpen ? "open" : "lock"}">${isOpen ? "читать" : "закрытая"}</span>
+            </span>
+            <div class="name">${escapeHtml(fName.value.trim() || "Название книги")}</div>
+            ${fAuthor.value.trim() ? `<div class="author">${escapeHtml(fAuthor.value.trim())}</div>` : ""}
+          </div>`;
+      }
+
+      /* ═══════════════ Модалка добавления / редактирования ═══════════════ */
+      function setAccess(acc) {
+        editingAccess = acc;
+        accOpen.classList.toggle("sel-open", acc === "open");
+        accLock.classList.toggle("sel-lock", acc === "closed");
+        urlField.style.display = acc === "closed" ? "none" : "";
+        validateForm();
+        renderCardPreview();
+      }
+      accOpen.addEventListener("click", () => setAccess("open"));
+      accLock.addEventListener("click", () => setAccess("closed"));
+
+      async function openEdit(id) {
+        editingId = id || null;
+        editingCoverDirty = false;
+        const b = id ? books.find((x) => x.id === id) : null;
+        editTitle.textContent = b ? "Редактировать книгу" : "Добавить книгу";
+        fName.value = b ? b.name : "";
+        fAuthor.value = b ? b.author : "";
+        fMeta.value = b ? b.meta : "";
+        fDesc.innerHTML = b ? sanitizeRich(b.description) : "";
+        fUrl.value = b ? b.url : "";
+        editingCoverUrl = b && b.cover ? await coverUrl(b) : null;
+        coverThumb.innerHTML = editingCoverUrl
+          ? `<img src="${editingCoverUrl}" alt="" />`
+          : "📖";
+        coverRemove.hidden = !editingCoverUrl;
+        editBackdrop.classList.add("open");
+        setAccess(b ? b.access : "open");
+        setTimeout(() => fName.focus(), 50);
+      }
+
+      function closeEdit() {
+        editBackdrop.classList.remove("open");
+        editingId = null;
+      }
+
+      /* загрузка обложки */
+      coverDrop.addEventListener("click", (e) => {
+        if (e.target.closest("#coverRemove")) return;
+        coverInput.click();
+      });
+      coverDrop.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") coverInput.click();
+      });
+      coverInput.addEventListener("change", async (e) => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        try {
+          const blob = await compressImage(file);
+          editingCoverUrl = URL.createObjectURL(blob);
+          editingCoverDirty = true;
+          coverThumb.innerHTML = `<img src="${editingCoverUrl}" alt="" />`;
+          coverRemove.hidden = false;
+          renderCardPreview();
+          toast("Обложка добавлена");
+        } catch {
+          toast("Не удалось прочитать картинку");
+        }
+      });
+      coverRemove.addEventListener("click", (e) => {
+        e.stopPropagation();
+        editingCoverUrl = null;
+        editingCoverDirty = true;
+        coverThumb.innerHTML = "📖";
+        coverRemove.hidden = true;
+        renderCardPreview();
+      });
+
+      function validateField(input, errEl, isValid) {
+        const bad = !isValid;
+        input.classList.toggle("invalid", bad);
+        errEl.classList.toggle("show", bad);
+        return !bad;
+      }
+
+      function validateForm() {
+        const nameOk = validateField(fName, errName, fName.value.trim().length > 0);
+        const needUrl = editingAccess !== "closed";
+        const urlOk = validateField(
+          fUrl,
+          errUrl,
+          !needUrl || isValidUrl(fUrl.value.trim()),
+        );
+        warnUrl.classList.toggle(
+          "show",
+          needUrl && urlOk && !isYandexUrl(fUrl.value.trim()),
+        );
+        btnSaveEdit.disabled = !(nameOk && urlOk);
+        return nameOk && urlOk;
+      }
+
+      [fName, fUrl, fAuthor, fMeta, fDesc].forEach((el) =>
+        el.addEventListener("input", () => {
+          validateForm();
+          renderCardPreview();
+        }),
+      );
+
+      /* ── Панель визуального редактора аннотации ── */
+      (function initRte() {
+        const area = fDesc;
+        const bar = document.getElementById("rte");
+        /* кнопки форматирования: execCommand работает во всех браузерах */
+        bar.querySelectorAll("[data-cmd]").forEach((btn) =>
+          btn.addEventListener("mousedown", (e) => {
+            e.preventDefault(); /* не терять выделение в области текста */
+            document.execCommand(btn.dataset.cmd, false, null);
+            area.focus();
+            validateForm();
+          }),
+        );
+        /* гарнитура: оборачиваем выделение в span со шрифтом */
+        document.getElementById("rteFont").addEventListener("change", (e) => {
+          const v = e.target.value;
+          if (v) document.execCommand("fontName", false, v);
+          e.target.value = "";
+          area.focus();
+        });
+        /* размер: fontSize 1-7, при сохранении превращается в span с px */
+        document.getElementById("rteSize").addEventListener("change", (e) => {
+          const px = e.target.value;
+          if (px) {
+            const n = { "13px": 2, "14px": 2, "16px": 3, "18px": 4, "20px": 5, "24px": 5 }[px] || 3;
+            document.execCommand("fontSize", false, n);
+            /* execCommand даёт font size=n — сразу заменяем на точные px */
+            area.querySelectorAll('font[size]').forEach((f) => {
+              const span = document.createElement("span");
+              span.style.fontSize = px;
+              span.innerHTML = f.innerHTML;
+              f.replaceWith(span);
+            });
+          }
+          e.target.value = "";
+          area.focus();
+          validateForm();
+        });
+        /* подсветка активных кнопок (жирный/курсив/подчёркивание) */
+        area.addEventListener("keyup", refreshRteBar);
+        area.addEventListener("mouseup", refreshRteBar);
+        function refreshRteBar() {
+          bar.querySelectorAll("[data-cmd]").forEach((btn) => {
+            try {
+              btn.classList.toggle("on", document.queryCommandState(btn.dataset.cmd));
+            } catch (_) {}
+          });
+        }
+      })();
+
+      editForm.addEventListener("submit", async (e) => {
+        e.preventDefault();
+        if (!validateForm()) return;
+        const id = editingId || uuid();
+        const hadCover = editingId
+          ? !!books.find((x) => x.id === editingId)?.cover
+          : false;
+        const data = {
+          name: fName.value.trim(),
+          author: fAuthor.value.trim(),
+          meta: fMeta.value.trim(),
+          description: sanitizeRich(fDesc.innerHTML),
+          access: editingAccess,
+          url: editingAccess === "closed" ? "" : fUrl.value.trim(),
+          cover: editingCoverUrl ? "covers/" + id + ".jpg" : "",
+        };
+        /* обложка: сохранить/заменить/удалить в IndexedDB */
+        if (editingCoverDirty) {
+          if (editingCoverUrl && editingCoverUrl.startsWith("blob:")) {
+            const blob = await (await fetch(editingCoverUrl)).blob();
+            await coverPut(id, blob).catch(() => {});
+          } else if (!editingCoverUrl && hadCover) {
+            await coverDel(id).catch(() => {});
+          }
+        }
+        if (editingId) {
+          const b = books.find((x) => x.id === editingId);
+          if (b) Object.assign(b, data);
+          closeEdit();
+          afterChange("Сохранено");
+        } else {
+          books.push({ id, ...data });
+          closeEdit();
+          afterChange("Книга добавлена");
+        }
+      });
+
+      $("btnAdd").addEventListener("click", () => openEdit(null));
+      $("btnCancelEdit").addEventListener("click", closeEdit);
+      editBackdrop.addEventListener("click", (e) => {
+        if (e.target === editBackdrop) closeEdit();
+      });
+
+      /* ═══════════════ Массовый импорт списком ═══════════════ */
+      $("btnBulk").addEventListener("click", () => {
+        bulkText.value = "";
+        bulkBackdrop.classList.add("open");
+        setTimeout(() => bulkText.focus(), 50);
+      });
+      $("btnBulkCancel").addEventListener("click", () =>
+        bulkBackdrop.classList.remove("open"),
+      );
+      bulkBackdrop.addEventListener("click", (e) => {
+        if (e.target === bulkBackdrop) bulkBackdrop.classList.remove("open");
+      });
+      $("btnBulkOk").addEventListener("click", () => {
+        const lines = bulkText.value.split("\n");
+        let added = 0;
+        for (const raw of lines) {
+          const line = raw.trim();
+          if (!line) continue;
+          const m = line.match(/^(.*?)\s*(https?:\/\/\S+)$/);
+          if (m && isValidUrl(m[2])) {
+            const name = m[1].trim() || m[2];
+            books.push(normalizeBook({ name, url: m[2], access: "open" }));
+          } else {
+            books.push(normalizeBook({ name: line, access: "closed" }));
+          }
+          added++;
+        }
+        bulkBackdrop.classList.remove("open");
+        if (added) afterChange(`Добавлено книг: ${added}`);
+        else toast("Список пуст — нечего добавлять");
+      });
+
+      /* ═══════════════ Подтверждения ═══════════════ */
+      function askConfirm(title, text, okLabel, action) {
+        confirmTitle.textContent = title;
+        confirmText.textContent = text;
+        btnConfirmOk.textContent = okLabel;
+        confirmAction = action;
+        confirmBackdrop.classList.add("open");
+        setTimeout(() => btnConfirmOk.focus(), 50);
+      }
+
+      function closeConfirm() {
+        confirmBackdrop.classList.remove("open");
+        confirmAction = null;
+      }
+
+      btnConfirmOk.addEventListener("click", () => {
+        const fn = confirmAction;
+        closeConfirm();
+        if (fn) fn();
+      });
+      $("btnConfirmCancel").addEventListener("click", closeConfirm);
+      confirmBackdrop.addEventListener("click", (e) => {
+        if (e.target === confirmBackdrop) closeConfirm();
+      });
+
+      function askDelete(b) {
+        askConfirm(
+          "Удалить книгу",
+          `Удалить книгу «${b.name}»?`,
+          "Удалить",
+          async () => {
+            await coverDel(b.id).catch(() => {});
+            blobUrlCache.delete(b.id);
+            books = books.filter((x) => x.id !== b.id);
+            afterChange("Удалено");
+          },
+        );
+      }
+
+      /* API публикации подключается через admin-auth.js */
+      function pubStatusMsg(text, cls) {
+        pubStatus.textContent = text;
+        pubStatus.className = "pub-status" + (cls ? " " + cls : "");
+      }
+      /* ═══════════════ Резервная копия (JSON) ═══════════════ */
+      $("btnExportJson").addEventListener("click", async () => {
+        /* обложки вкладываем в копию как dataURL — файл самодостаточен */
+        const packed = await Promise.all(
+          books.map(async (b) => {
+            if (!b.cover) return b;
+            const blob = await coverGet(b.id).catch(() => null);
+            if (!blob) return b;
+            const b64 = await blobToBase64(blob);
+            return { ...b, coverData: "data:image/jpeg;base64," + b64 };
+          }),
+        );
+        download(
+          "books-backup.json",
+          JSON.stringify({ site, books: packed }, null, 2),
+          "application/json",
+        );
+        toast("Копия сохранена");
+      });
+
+      $("btnImportJson").addEventListener("click", () => $("fileInput").click());
+      $("fileInput").addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        e.target.value = "";
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = async () => {
+          try {
+            const data = JSON.parse(reader.result);
+            const arr = Array.isArray(data) ? data : data.books || data.files;
+            if (!Array.isArray(arr)) throw new Error("bad format");
+            books = arr
+              .filter((b) => b && typeof b === "object" && typeof b.name === "string")
+              .map(normalizeBook);
+            /* восстановить обложки из вложенных dataURL */
+            for (const [i, raw] of arr.entries()) {
+              if (raw.coverData && raw.coverData.startsWith("data:")) {
+                const blob = await (await fetch(raw.coverData)).blob();
+                const id = books[i] && books[i].id;
+                if (id) await coverPut(id, blob).catch(() => {});
+              }
+            }
+            if (!Array.isArray(data) && data.site) {
+              site = { ...DEFAULT_SITE, ...data.site };
+              fillSiteForm();
+            }
+            afterChange("Данные восстановлены");
+          } catch {
+            toast("Не удалось прочитать файл копии");
+          }
+        };
+        reader.readAsText(file);
+      });
+
+      // Сброс — двойное подтверждение
+      $("btnReset").addEventListener("click", () => {
+        askConfirm(
+          "Сбросить всё?",
+          "Будут удалены все книги, обложки и тексты страницы в этой админке. На сайте данные останутся до следующей публикации.",
+          "Продолжить",
+          () => {
+            askConfirm(
+              "Точно сбросить?",
+              "Последний шаг: подтвердите полную очистку данных.",
+              "Сбросить всё",
+              async () => {
+                for (const b of books) await coverDel(b.id).catch(() => {});
+                books = [];
+                site = { ...DEFAULT_SITE };
+                fillSiteForm();
+                try {
+                  localStorage.removeItem(LS_EXPORTED);
+                } catch {}
+                afterChange("Все данные очищены");
+              },
+            );
+          },
+        );
+      });
+
+      /* ═══════════════ Тексты и оформление страницы ═══════════════
+         Любое изменение сразу: обновляет мини-превью, большое превью
+         и автосохраняет — без кнопок. */
+      function applySiteForm() {
+        readSiteForm();
+        updateMini();
+        save();
+        renderPreview();
+      }
+
+      function readSiteForm() {
+        site = {
+          title: $("siteTitle").value.trim() || DEFAULT_SITE.title,
+          subtitle: $("siteSubtitle").value.trim() || DEFAULT_SITE.subtitle,
+          eyebrow: $("siteEyebrow").value.trim() || DEFAULT_SITE.eyebrow,
+          font: $("siteFont").value,
+          titleSize: parseInt($("titleSize").value, 10),
+          titleWeight: parseInt($("titleWeight").value, 10),
+          nameSize: parseInt($("nameSize").value, 10),
+          nameWeight: parseInt($("nameWeight").value, 10),
+          accent: $("accentColor").value,
+        };
+      }
+
+      /* ползунок ↔ числовое поле: двусторонняя синхронизация */
+      function bindRangeNum(rangeId, numId) {
+        const range = $(rangeId);
+        const num = $(numId);
+        range.addEventListener("input", () => {
+          num.value = range.value;
+          applySiteForm();
+        });
+        num.addEventListener("input", () => {
+          let v = parseInt(num.value, 10);
+          if (isNaN(v)) return;
+          v = Math.max(parseInt(num.min, 10), Math.min(parseInt(num.max, 10), v));
+          range.value = v;
+          applySiteForm();
+        });
+        num.addEventListener("change", () => {
+          num.value = range.value; // на выходе показываем применённое значение
+        });
+      }
+      bindRangeNum("titleSize", "titleSizeNum");
+      bindRangeNum("nameSize", "nameSizeNum");
+
+      /* пипетка ↔ hex-поле */
+      $("accentColor").addEventListener("input", () => {
+        $("accentHex").value = $("accentColor").value;
+        $("accentHex").classList.remove("bad");
+        applySiteForm();
+      });
+      $("accentHex").addEventListener("input", () => {
+        const v = $("accentHex").value.trim();
+        const ok = /^#[0-9a-fA-F]{6}$/.test(v);
+        $("accentHex").classList.toggle("bad", !ok && v.length > 0);
+        if (ok) {
+          $("accentColor").value = v;
+          applySiteForm();
+        }
+      });
+
+      ["siteTitle", "siteSubtitle", "siteEyebrow", "siteFont", "titleWeight", "nameWeight"].forEach(
+        (id) => $(id).addEventListener("input", applySiteForm),
+      );
+
+      /* готовые цвета: клик по круглому свотчу ставит акцент */
+      document.querySelectorAll("#swatches button").forEach((b) =>
+        b.addEventListener("click", () => {
+          $("accentColor").value = b.dataset.color;
+          $("accentHex").value = b.dataset.color;
+          $("accentHex").classList.remove("bad");
+          applySiteForm();
+        }),
+      );
+
+      /* ширина предпросмотра: десктоп / мобильный */
+      (function initPvToggle() {
+        const wrap = document.querySelector(".mini-site-wrap");
+        const desk = $("pvDesktop"), mob = $("pvMobile");
+        function setMode(mobile) {
+          wrap.classList.toggle("mobile", mobile);
+          desk.setAttribute("aria-pressed", String(!mobile));
+          mob.setAttribute("aria-pressed", String(mobile));
+        }
+        desk.addEventListener("click", () => setMode(false));
+        mob.addEventListener("click", () => setMode(true));
+      })();
+
+      /* сброс оформления к значениям по умолчанию */
+      $("btnResetDesign").addEventListener("click", () => {
+        site = { ...DEFAULT_SITE };
+        fillSiteForm();
+        applySiteForm();
+      });
+
+      /* Доступ к статистике проксируется через серверный API. */
+      const stPeriod = $("stPeriod");
+      const statsStatus = $("statsStatus");
+      const statsResult = $("statsResult");
+      const statsCards = $("statsCards");
+      const btnStatsCsv = $("btnStatsCsv");
+      let statsData = null;
+      function statsStatusMsg(text, isErr) {
+        statsStatus.textContent = text;
+        statsStatus.classList.toggle("err", !!isErr);
+      }
+      function showStats(data) {
+        statsData = data;
+        statsResult.hidden = false;
+        btnStatsCsv.disabled = false;
+
+        statsCards.innerHTML = `
+          <div class="stat-card"><div class="num">${data.totalVisitors}</div><div class="lbl">посетителей за ${data.daysCount} дн.</div></div>
+          <div class="stat-card"><div class="num">${data.pageviews}</div><div class="lbl">просмотров страницы</div></div>
+          <div class="stat-card"><div class="num">${data.totalClicks}</div><div class="lbl">кликов по книгам</div></div>`;
+
+        const maxDay = Math.max(1, ...data.days.map((d) => d.count));
+        $("chartDays").innerHTML =
+          '<div class="daychart">' +
+          data.days
+            .map((d) => {
+              const h = Math.round((d.count / maxDay) * 100);
+              const date = new Date(d.day + "T00:00:00").toLocaleDateString("ru-RU", {
+                day: "numeric",
+                month: "short",
+              });
+              return `<div class="bar" style="height:${Math.max(h, 2)}%" data-tip="${date} — ${d.count}"></div>`;
+            })
+            .join("") +
+          "</div>";
+
+        const rows = [...data.books].sort((a, b) => b.count - a.count);
+        const maxBook = Math.max(1, ...rows.map((b) => b.count));
+        $("chartBooks").innerHTML = rows.length
+          ? '<div class="bookchart">' +
+            rows
+              .map(
+                (b) => `
+              <div class="brow">
+                <span class="bname" title="${escapeHtml(b.name)}">${escapeHtml(b.name)}</span>
+                <span class="bval">${b.count}</span>
+                <div class="btrack"><div class="bfill" style="width:${Math.round((b.count / maxBook) * 100)}%"></div></div>
+              </div>`,
+              )
+              .join("") +
+            "</div>"
+          : '<p class="hint">Кликов по книгам пока не было.</p>';
+      }
+
+      $("btnStatsDemo").addEventListener("click", () => {
+        const days = parseInt(stPeriod.value, 10);
+        const today = new Date();
+        const demo = {
+          days: Array.from({ length: days }, (_, i) => {
+            const d = new Date(today.getTime() - (days - 1 - i) * 86400000);
+            return {
+              day: d.toISOString().slice(0, 10),
+              count: Math.max(0, Math.round(12 + 9 * Math.sin(i / 3) + (Math.random() * 8 - 4))),
+            };
+          }),
+          books: books.slice(0, 7).map((b, i) => ({
+            name: b.name,
+            count: Math.max(1, Math.round(24 - i * 3.5 + Math.random() * 4)),
+          })),
+          daysCount: days,
+        };
+        demo.totalVisitors = demo.days.reduce((s, d) => s + d.count, 0);
+        demo.totalClicks = demo.books.reduce((s, b) => s + b.count, 0);
+        demo.pageviews = Math.round(demo.totalVisitors * 1.3);
+        showStats(demo);
+        statsStatusMsg("");
+      });
+
+      /* Выгрузка в Excel: CSV с «;» и BOM — Excel открывает как таблицу */
+      btnStatsCsv.addEventListener("click", () => {
+        if (!statsData) return;
+        const lines = [];
+        const fmtDay = (d) => new Date(d + "T00:00:00").toLocaleDateString("ru-RU");
+        lines.push("ПОСЕТИТЕЛИ ПО ДНЯМ");
+        lines.push("Дата;Посетители");
+        statsData.days.forEach((d) => lines.push(`${fmtDay(d.day)};${d.count}`));
+        lines.push("");
+        lines.push("КЛИКИ ПО КНИГАМ");
+        lines.push("Книга;Клики");
+        [...statsData.books]
+          .sort((a, b) => b.count - a.count)
+          .forEach((b) => lines.push(`"${b.name.replace(/"/g, '""')}";${b.count}`));
+        lines.push("");
+        lines.push("ИТОГО");
+        lines.push(`Посетители;${statsData.totalVisitors}`);
+        lines.push(`Просмотры страницы;${statsData.pageviews}`);
+        lines.push(`Клики по книгам;${statsData.totalClicks}`);
+        download("statistics.csv", "﻿" + lines.join("\r\n"), "text/csv;charset=utf-8");
+        toast("statistics.csv скачан — откроется в Excel");
+      });
+/* ═══════════════ Меню «Резервная копия» ═══════════════ */
+      const backupMenu = $("backupMenu");
+      $("btnBackup").addEventListener("click", (e) => {
+        e.stopPropagation();
+        backupMenu.hidden = !backupMenu.hidden;
+        $("btnBackup").setAttribute("aria-expanded", String(!backupMenu.hidden));
+      });
+      document.addEventListener("click", (e) => {
+        if (!backupMenu.hidden && !e.target.closest(".menu-wrap"))
+          backupMenu.hidden = true;
+      });
+      backupMenu.addEventListener("click", () => (backupMenu.hidden = true));
+
+      /* ═══════════════ Горячие клавиши ═══════════════ */
+      document.addEventListener("keydown", (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "s") {
+          e.preventDefault();
+          save();
+          toast("Сохранено");
+        } else if (e.key === "Escape") {
+          if (confirmBackdrop.classList.contains("open")) closeConfirm();
+          else if (bulkBackdrop.classList.contains("open"))
+            bulkBackdrop.classList.remove("open");
+          else if (editBackdrop.classList.contains("open")) closeEdit();
+          else backupMenu.hidden = true;
+        }
+      });
+
+      /* ═══════════════ Старт ═══════════════ */
+      load();
+      renderRows();
+      renderPreview();
+      updateDirty();
+    </script>
+    <script src="./admin-auth.js" defer></script>
+  </body>
+</html>
