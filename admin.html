@@ -814,11 +814,10 @@
               </div>
             </div>
             <div>
-              <label for="ghToken">Токен GitHub (один раз)</label>
-              <input id="ghToken" type="password" placeholder="ghp_…" autocomplete="off" />
+              <label for="ghToken">GitHub Fine-grained token</label>
+              <input id="ghToken" type="password" placeholder="github_pat_…" autocomplete="off" />
               <p class="hint">
-                Создаётся один раз: GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic) → галочка <b>repo</b>.
-                Токен хранится только в этом браузере. После заполнения кнопка «Опубликовать» обновляет сайт сама.
+                Создай Fine-grained token только для репозитория <b>biblMir/books</b>: Repository access → Only select repositories → books; Repository permissions → Contents: Read and write. Поставь срок действия, например 30 дней. Токен сохраняется в localStorage этого браузера — он не вшит в код и не отправляется в репозиторий.
               </p>
             </div>
             <div class="pub-status" id="pubStatus"></div>
