@@ -73,7 +73,7 @@ function response(statusCode, body, extraHeaders = {}) {
 }
 
 function sessionCookieHeader(token, clear = false) {
-  const value = clear ? "" : `books_admin=${token}`;
+  const value = clear ? "books_admin=" : `books_admin=${token}`;
   const age = clear ? 0 : SESSION_SECONDS;
   return `${value}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Strict`;
 }
