@@ -1,11 +1,10 @@
 (() => {
   const API = String(window.BOOKS_ADMIN_API || "").replace(/\/$/, "");
-  const SESSION_KEY = "booksAdminSession.v1";
   const BASE_SHA_KEY = "booksAdminBaseSha.v1";
   const LS_PUB = "bookmgr.publish.v1";
   const LS_STATS = "bookmgr.stats.v1";
   const LS_EXPORTED = "bookmgr.publishedHash.v1";
-  let token = sessionStorage.getItem(SESSION_KEY) || "";
+  let authenticated = false;
   let baseSha = localStorage.getItem(BASE_SHA_KEY) || "";
   const overlay = document.getElementById("loginOverlay");
   const form = document.getElementById("loginForm");
@@ -18,8 +17,7 @@
   localStorage.removeItem(LS_STATS);
 
   function showLogin(text = "") {
-    token = "";
-    sessionStorage.removeItem(SESSION_KEY);
+    authenticated = false;
     overlay.hidden = false;
     logout.hidden = true;
     message.textContent = text;
@@ -37,7 +35,6 @@
       throw new Error("Сервер входа ещё не подключён.");
     }
     const headers = { "Content-Type": "application/json", ...(options.headers || {}) };
-    if (token) headers.Authorization = `Bearer ${token}`;
     const [route, query = ""] = path.split("?");
     const endpoint = new URL(API, window.location.origin);
     endpoint.searchParams.set("route", route);
@@ -47,7 +44,7 @@
     const timeout = setTimeout(() => controller.abort(), timeoutMs);
     let response;
     try {
-      response = await fetch(endpoint, { ...options, headers, cache: "no-store", signal: controller.signal });
+      response = await fetch(endpoint, { ...options, headers, credentials: "same-origin", cache: "no-store", signal: controller.signal });
     } catch (error) {
       if (error.name === "AbortError") throw new Error("Сервер долго не отвечает. Обнови страницу и проверь подключение.");
       throw new Error("Не удалось связаться с сервером. Проверь адрес и подключение к сети.");
@@ -87,7 +84,7 @@
   }
 
   async function publish() {
-    if (!token) return showLogin("Сначала войди в админку.");
+    if (!authenticated) return showLogin("Сначала войди в админку.");
     const button = document.getElementById("btnPublish");
     button.disabled = true;
     try {
@@ -154,10 +151,9 @@
         body: JSON.stringify({ login: document.getElementById("loginUser").value.trim(), password: document.getElementById("loginPassword").value }),
       });
       message.textContent = "Вход принят, загружаю каталог…";
-      token = result.token;
-      sessionStorage.setItem(SESSION_KEY, token);
       document.getElementById("loginPassword").value = "";
       const me = await api("/api/me");
+      authenticated = true;
       hideLogin(me.login);
       await pullLatest(false);
       pubStatusMsg("Вошёл. Каталог синхронизирован.", "ok");
@@ -177,13 +173,13 @@
     if (button.id === "btnPublish") publish();
     else if (button.id === "btnPull") pullLatest(true).then(() => pubStatusMsg("Загружена свежая версия каталога.", "ok")).catch((error) => pubStatusMsg(error.message, "err"));
     else if (button.id === "btnLoadStats") loadStats();
-    else showLogin("Ты вышел из админки.");
+    else api("/api/logout", { method: "POST" }).catch(() => {}).finally(() => showLogin("Ты вышел из админки."));
   }, true);
 
   (async () => {
-    if (!token) return showLogin();
     try {
       const me = await api("/api/me");
+      authenticated = true;
       hideLogin(me.login);
       await pullLatest(false);
     } catch (error) {
