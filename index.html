@@ -3,7 +3,7 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Каталог книг — читайте онлайн, файлы на Яндекс.Диске." />
+    <meta name="description" content="Каталог книг для чтения." />
     <title>Мои книги</title>
     <style>
       :root {
@@ -340,15 +340,7 @@
 
     <main class="books" id="books"></main>
     <div class="search-empty" id="searchEmpty">Ничего не найдено. Попробуйте другой запрос.</div>
-
-    <footer>
-      Книги хранятся на
-      <a href="https://disk.yandex.ru" target="_blank" rel="noopener"
-        >Яндекс.Диске</a
-      >
-    </footer>
-
-    <script>
+<script>
       /* Встроенный снимок данных: страница работает, даже если books.json
          ещё не загрузился. Админка обновляет этот блок при публикации. */
       const EMBEDDED = /*DATA_PLACEHOLDER*/null;
@@ -383,7 +375,7 @@
         document.getElementById("siteTitle").textContent =
           s.title || "Мои книги";
         document.getElementById("siteSubtitle").textContent =
-          s.subtitle || "Всё в одном месте. Нажми — книга откроется.";
+          s.subtitle || "Истории, к которым хочется возвращаться.";
         document.title = s.title || "Мои книги";
         const root = document.documentElement.style;
         root.setProperty("--font-stack", FONT_STACKS[s.font] || FONT_STACKS.system);
