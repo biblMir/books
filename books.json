@@ -1,0 +1,85 @@
+{
+  "site": {
+    "eyebrow": "Личная подборка",
+    "title": "Мои книги",
+    "subtitle": "Всё в одном месте. Нажми — книга откроется на Яндекс.Диске.",
+    "font": "system",
+    "titleSize": 60,
+    "titleWeight": 700,
+    "nameSize": 16,
+    "nameWeight": 600,
+    "accent": "#c2410c"
+  },
+  "books": [
+    {
+      "id": "b1a7d2c0-0001-4a01-9a01-000000000001",
+      "name": "Как Чисхан в гости к деду ходил",
+      "author": "Л. Винс",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/7ZWwr3nGCRR0gA",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0002-4a02-9a02-000000000002",
+      "name": "Сказки алмазной красавицы",
+      "author": "Л. Винс",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/aEk1JycAu41sag",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0003-4a03-9a03-000000000003",
+      "name": "Отсвет минувших дней",
+      "author": "А. М. Григорьев",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/UPEDBnPv8nrRdg",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0004-4a04-9a04-000000000004",
+      "name": "Среди друзей",
+      "author": "В. С. Донская",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/ZoKs1v2tZ8KUXA",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0005-4a05-9a05-000000000005",
+      "name": "Ступеньки",
+      "author": "В. Донская",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/ZoKs1v2tZ8KUXA",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0006-4a06-9a06-000000000006",
+      "name": "Ступеньки 2",
+      "author": "В. С. Донская",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/mp3AA5HU4mdwaQ",
+      "cover": ""
+    },
+    {
+      "id": "b1a7d2c0-0007-4a07-9a07-000000000007",
+      "name": "Всем на свете",
+      "author": "В. С. Донская",
+      "meta": "",
+      "description": "",
+      "access": "open",
+      "url": "https://disk.yandex.ru/i/1aESfX99HFHi8w",
+      "cover": ""
+    }
+  ]
+}
