@@ -68,8 +68,20 @@ function parseBody(raw) {
   catch { throw Object.assign(new Error("Некорректные данные запроса."), { statusCode: 400 }); }
 }
 
-function response(statusCode, body) {
-  return { statusCode, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" }, body: JSON.stringify(body) };
+function response(statusCode, body, extraHeaders = {}) {
+  return { statusCode, headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", ...extraHeaders }, body: JSON.stringify(body) };
+}
+
+function sessionCookieHeader(token, clear = false) {
+  const value = clear ? "" : `books_admin=${token}`;
+  const age = clear ? 0 : SESSION_SECONDS;
+  return `${value}; Path=/; Max-Age=${age}; HttpOnly; Secure; SameSite=Strict`;
+}
+
+function cookieSession(headers) {
+  const raw = String(headers.cookie || "");
+  const item = raw.split(";").map((part) => part.trim()).find((part) => part.startsWith("books_admin="));
+  return item ? item.slice("books_admin=".length) : "";
 }
 
 async function stats(days) {
@@ -90,20 +102,22 @@ async function stats(days) {
   return { statusCode: 200, body: { total, hits } };
 }
 
-async function handle({ method, route, query, headers, body, ip }) {
+async function handle({ method, route, query, headers, body, ip, secure = false }) {
   if (route === "/api/health" && method === "GET") return response(200, { ok: true });
+  if (route === "/api/logout" && method === "POST") return response(200, { ok: true }, { "Set-Cookie": sessionCookieHeader("", true) });
   if (route === "/api/login" && method === "POST") {
+    if (!secure) return response(400, { error: "Открой редактор по защищённой HTTPS-ссылке." });
     if (!checkLoginLimit(ip)) return response(429, { error: "Слишком много попыток. Подожди минуту и попробуй снова." });
     const input = parseBody(body);
     if (!process.env.ADMIN_LOGIN || !process.env.ADMIN_PASSWORD_HASH || !process.env.SESSION_SECRET) return response(503, { error: "Вход ещё не настроен." });
     if (!safeEqual(String(input.login || ""), process.env.ADMIN_LOGIN) || !verifyPassword(input.password || "", process.env.ADMIN_PASSWORD_HASH)) {
       return response(401, { error: "Логин или пароль не подошёл." });
     }
-    return response(200, { token: sessionToken(), expiresIn: SESSION_SECONDS });
+    return response(200, { login: process.env.ADMIN_LOGIN, expiresIn: SESSION_SECONDS }, { "Set-Cookie": sessionCookieHeader(sessionToken()) });
   }
 
-  const authorization = headers.authorization || "";
-  if (!authorization.startsWith("Bearer ") || !validSession(authorization.slice(7))) return response(401, { error: "Сеанс закончился. Войди снова." });
+  if (!secure) return response(400, { error: "Открой редактор по защищённой HTTPS-ссылке." });
+  if (!validSession(cookieSession(headers))) return response(401, { error: "Сеанс закончился. Войди снова." });
   if (route === "/api/me" && method === "GET") return response(200, { login: process.env.ADMIN_LOGIN || "редактор" });
 
   if (route === "/api/catalog" && method === "GET") {
