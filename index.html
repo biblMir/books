@@ -1,0 +1,487 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Каталог книг — читайте онлайн, файлы на Яндекс.Диске." />
+    <title>Мои книги</title>
+    <style>
+      :root {
+        --bg: #f5f5f7;
+        --card: #ffffff;
+        --ink: #1d1d1f;
+        --ink-soft: #6e6e73;
+        --ink-faint: #86868b;
+        --accent: #c2410c;
+        --accent-dark: #9a3412;
+        --line: #e8e8ed;
+        --radius: 20px;
+        --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 8px 24px rgba(0, 0, 0, 0.05);
+        --shadow-hover:
+          0 2px 6px rgba(0, 0, 0, 0.05), 0 20px 44px rgba(0, 0, 0, 0.12);
+        /* настраиваемое из админки */
+        --font-stack:
+          -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI",
+          Roboto, "Helvetica Neue", Arial, sans-serif;
+        --h1-size: 60px;
+        --h1-weight: 700;
+        --name-size: 16px;
+        --name-weight: 600;
+      }
+
+      * {
+        box-sizing: border-box;
+        margin: 0;
+        padding: 0;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
+      html,
+      body {
+        background: var(--bg);
+        color: var(--ink);
+        font-family: var(--font-stack);
+        -webkit-font-smoothing: antialiased;
+        text-rendering: optimizeLegibility;
+        line-height: 1.45;
+      }
+
+      ::selection {
+        background: color-mix(in srgb, var(--accent) 18%, transparent);
+      }
+
+      body {
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        padding: 88px 24px 72px;
+      }
+
+      /* ——— Hero ——— */
+      .hero {
+        text-align: center;
+        max-width: 720px;
+        margin-bottom: 40px;
+        animation: rise 0.9s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+      }
+      .eyebrow {
+        display: inline-block;
+        font-size: 12px;
+        font-weight: 500;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--ink-faint);
+        margin-bottom: 18px;
+      }
+      h1 {
+        font-size: clamp(34px, calc(var(--h1-size) / 60 * 6vw), var(--h1-size));
+        font-weight: var(--h1-weight);
+        letter-spacing: -0.03em;
+        line-height: 1.05;
+        margin-bottom: 18px;
+      }
+      .subtitle {
+        font-size: clamp(16px, 2vw, 19px);
+        color: var(--ink-soft);
+        max-width: 560px;
+        margin: 0 auto;
+        text-wrap: balance;
+      }
+
+      /* ——— Поиск ——— */
+      .search {
+        width: 100%;
+        max-width: 1080px;
+        margin-bottom: 34px;
+        animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation-delay: 150ms;
+      }
+      .search input {
+        width: 100%;
+        font: inherit;
+        font-size: clamp(17px, 2vw, 19px);
+        color: var(--ink);
+        background: var(--card);
+        border: 1px solid var(--line);
+        border-radius: 980px;
+        padding: 18px 26px 18px 58px;
+        box-shadow: var(--shadow);
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        background-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="%2386868b" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>');
+        background-repeat: no-repeat;
+        background-position: 22px 50%;
+      }
+      .search input::placeholder {
+        color: var(--ink-faint);
+      }
+      .search input:focus {
+        outline: none;
+        border-color: var(--accent);
+        box-shadow:
+          0 0 0 4px color-mix(in srgb, var(--accent) 14%, transparent),
+          var(--shadow-hover);
+      }
+
+      /* ——— Сетка книг (карточки с обложками, как в книжном магазине) ——— */
+      .books {
+        width: 100%;
+        max-width: 1080px;
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+        gap: 22px;
+      }
+
+      .book {
+        display: flex;
+        flex-direction: column;
+        text-decoration: none;
+        color: inherit;
+        animation: rise 0.8s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+        animation-delay: calc(min(var(--i), 12) * 55ms + 200ms);
+        transition: transform 0.35s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      a.book:hover {
+        transform: translateY(-5px);
+      }
+      a.book:focus-visible {
+        outline: 3px solid var(--accent);
+        outline-offset: 4px;
+        border-radius: 16px;
+      }
+      .book.hidden-by-search {
+        display: none;
+      }
+
+      .cover {
+        position: relative;
+        aspect-ratio: 3 / 4;
+        border-radius: 16px;
+        overflow: hidden;
+        background:
+          linear-gradient(135deg, #e8e8ed 0%, #f5f5f7 100%);
+        box-shadow: var(--shadow);
+        transition: box-shadow 0.35s ease;
+        margin-bottom: 12px;
+      }
+      a.book:hover .cover {
+        box-shadow: var(--shadow-hover);
+      }
+      .cover img {
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+        display: block;
+        transition: transform 0.5s cubic-bezier(0.2, 0.7, 0.2, 1);
+      }
+      a.book:hover .cover img {
+        transform: scale(1.04);
+      }
+      /* заглушка без обложки: первая буква названия */
+      .cover .stub {
+        position: absolute;
+        inset: 0;
+        display: grid;
+        place-items: center;
+        font-size: 56px;
+        font-weight: 700;
+        color: var(--accent);
+        opacity: 0.35;
+        letter-spacing: -0.02em;
+      }
+      .cover .badge {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        font-size: 11px;
+        font-weight: 600;
+        letter-spacing: 0.03em;
+        padding: 4px 10px;
+        border-radius: 980px;
+        backdrop-filter: blur(8px);
+        -webkit-backdrop-filter: blur(8px);
+      }
+      .cover .badge.open {
+        color: #fff;
+        background: color-mix(in srgb, var(--accent) 88%, transparent);
+      }
+      .cover .badge.lock {
+        color: #fff;
+        background: rgba(94, 70, 20, 0.72);
+      }
+
+      .book .name {
+        font-size: var(--name-size);
+        font-weight: var(--name-weight);
+        letter-spacing: -0.01em;
+        line-height: 1.3;
+        overflow: hidden;
+        display: -webkit-box;
+        -webkit-line-clamp: 2;
+        -webkit-box-orient: vertical;
+        margin-bottom: 4px;
+      }
+      a.book:hover .name {
+        color: var(--accent-dark);
+      }
+      .book .author {
+        font-size: 13.5px;
+        color: var(--ink-soft);
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .book .meta {
+        font-size: 12.5px;
+        color: var(--ink-faint);
+        margin-top: 2px;
+      }
+
+      /* ——— Пустые состояния ——— */
+      .empty {
+        grid-column: 1 / -1;
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 15px;
+        padding: 48px 24px;
+        background: var(--card);
+        border: 1px dashed var(--line);
+        border-radius: var(--radius);
+      }
+      .search-empty {
+        display: none;
+        width: 100%;
+        max-width: 1080px;
+        text-align: center;
+        color: var(--ink-faint);
+        font-size: 15px;
+        padding: 40px 24px;
+      }
+      .search-empty.show {
+        display: block;
+      }
+
+      /* ——— Footer ——— */
+      footer {
+        margin-top: 80px;
+        font-size: 13px;
+        color: var(--ink-faint);
+        text-align: center;
+        letter-spacing: 0.01em;
+      }
+      footer a {
+        color: var(--ink-soft);
+        text-decoration: none;
+        border-bottom: 1px solid #d2d2d7;
+        transition:
+          color 0.2s ease,
+          border-color 0.2s ease;
+      }
+      footer a:hover {
+        color: var(--ink);
+        border-color: var(--ink);
+      }
+
+      /* ——— Animations ——— */
+      @keyframes rise {
+        from {
+          opacity: 0;
+          transform: translateY(18px);
+        }
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      /* ——— Mobile ——— */
+      @media (max-width: 560px) {
+        body {
+          padding: 56px 16px 48px;
+        }
+        .books {
+          grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+          gap: 16px;
+        }
+        .hero {
+          margin-bottom: 32px;
+        }
+      }
+
+      @media (prefers-reduced-motion: reduce) {
+        * {
+          animation: none !important;
+          transition: none !important;
+        }
+        html {
+          scroll-behavior: auto;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <span class="eyebrow" id="siteEyebrow"></span>
+      <h1 id="siteTitle"></h1>
+      <p class="subtitle" id="siteSubtitle"></p>
+    </header>
+
+    <div class="search">
+      <input
+        type="search"
+        id="searchInput"
+        placeholder="Найти книгу по названию или автору…"
+        aria-label="Поиск книги по названию или автору"
+      />
+    </div>
+
+    <main class="books" id="books"></main>
+    <div class="search-empty" id="searchEmpty">Ничего не найдено. Попробуйте другой запрос.</div>
+
+    <footer>
+      Книги хранятся на
+      <a href="https://disk.yandex.ru" target="_blank" rel="noopener"
+        >Яндекс.Диске</a
+      >
+    </footer>
+
+    <script>
+      /* Встроенный снимок данных: страница работает, даже если books.json
+         ещё не загрузился. Админка обновляет этот блок при публикации. */
+      const EMBEDDED = /*DATA_PLACEHOLDER*/null;
+
+      /* Шрифтовые темы — выбираются в админке */
+      const FONT_STACKS = {
+        system:
+          '-apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+        serif: 'Georgia, "Times New Roman", "PT Serif", serif',
+        rounded:
+          'ui-rounded, "SF Pro Rounded", "Segoe UI", system-ui, sans-serif',
+      };
+
+      const esc = (s) =>
+        String(s).replace(
+          /[&<>"']/g,
+          (c) =>
+            ({
+              "&": "&amp;",
+              "<": "&lt;",
+              ">": "&gt;",
+              '"': "&quot;",
+              "'": "&#39;",
+            })[c],
+        );
+
+      /* Применяем тексты и оформление */
+      function applySite(site) {
+        const s = site || {};
+        document.getElementById("siteEyebrow").textContent =
+          s.eyebrow || "Личная подборка";
+        document.getElementById("siteTitle").textContent =
+          s.title || "Мои книги";
+        document.getElementById("siteSubtitle").textContent =
+          s.subtitle || "Всё в одном месте. Нажми — книга откроется.";
+        document.title = s.title || "Мои книги";
+        const root = document.documentElement.style;
+        root.setProperty("--font-stack", FONT_STACKS[s.font] || FONT_STACKS.system);
+        if (s.titleSize) root.setProperty("--h1-size", s.titleSize + "px");
+        if (s.titleWeight) root.setProperty("--h1-weight", s.titleWeight);
+        if (s.nameSize) root.setProperty("--name-size", s.nameSize + "px");
+        if (s.nameWeight) root.setProperty("--name-weight", s.nameWeight);
+        if (s.accent) {
+          root.setProperty("--accent", s.accent);
+          /* тёмный вариант акцента для hover-состояний */
+          root.setProperty("--accent-dark", s.accent);
+        }
+      }
+
+      /* Карточка книги. Открытая — ссылка на Диск с трекингом клика
+         GoatCounter (data-goatcounter-click), закрытая — просто карточка. */
+      function cardHtml(b, i) {
+        const isOpen = b.access !== "closed" && b.url;
+        const coverInner = b.cover
+          ? `<img src="${esc(b.cover)}" alt="Обложка «${esc(b.name)}»" loading="lazy" />`
+          : `<span class="stub" aria-hidden="true">${esc((b.name || "?").trim().charAt(0).toUpperCase())}</span>`;
+        const inner = `
+      <span class="cover">
+        ${coverInner}
+        <span class="badge ${isOpen ? "open" : "lock"}">${isOpen ? "читать" : "закрытая"}</span>
+      </span>
+      <span class="name">${esc(b.name)}</span>
+      ${b.author ? `<span class="author">${esc(b.author)}</span>` : ""}
+      ${b.meta ? `<span class="meta">${esc(b.meta)}</span>` : ""}`;
+        const search = esc(
+          (
+            b.name +
+            " " +
+            (b.author || "") +
+            " " +
+            (b.description || "") +
+            " " +
+            (b.meta || "")
+          ).toLowerCase(),
+        );
+        if (isOpen) {
+          return `
+  <a class="book" href="${esc(b.url)}" target="_blank" rel="noopener"
+     aria-label="Открыть книгу «${esc(b.name)}»"
+     data-goatcounter-click="open-book: ${esc(b.name)}"
+     data-goatcounter-title="Открыли книгу: ${esc(b.name)}"
+     data-search="${search}"
+     style="--i:${i}">${inner}
+  </a>`;
+        }
+        return `
+  <div class="book" data-search="${search}" style="--i:${i}">${inner}
+  </div>`;
+      }
+
+      function render(data) {
+        applySite(data.site);
+        const books = data.books || [];
+        const booksEl = document.getElementById("books");
+        const searchInput = document.getElementById("searchInput");
+        const searchEmpty = document.getElementById("searchEmpty");
+        if (books.length === 0) {
+          booksEl.innerHTML =
+            '<div class="empty">Пока здесь пусто — книги скоро появятся.</div>';
+          return;
+        }
+        booksEl.innerHTML = books.map(cardHtml).join("");
+        /* поиск всегда активен: ищет по названию, автору, аннотации */
+        searchInput.addEventListener("input", () => {
+          const q = searchInput.value.trim().toLowerCase();
+          let visible = 0;
+          booksEl.querySelectorAll("[data-search]").forEach((el) => {
+            const hit = !q || el.dataset.search.includes(q);
+            el.classList.toggle("hidden-by-search", !hit);
+            if (hit) visible++;
+          });
+          searchEmpty.classList.toggle("show", visible === 0);
+        });
+      }
+
+      /* Сначала встроенный снимок (мгновенный показ), затем свежий books.json */
+      if (EMBEDDED) render(EMBEDDED);
+      fetch("books.json?_=" + Date.now(), { cache: "no-store" })
+        .then((r) => (r.ok ? r.json() : null))
+        .then((data) => {
+          if (data && Array.isArray(data.books)) render(data);
+        })
+        .catch(() => {
+          /* офлайн или books.json ещё не создан — остаётся встроенный снимок */
+          if (!EMBEDDED) render({ books: [] });
+        });
+    </script>
+
+    <!-- Счётчик GoatCounter -->
+    <script
+      data-goatcounter="https://lana.goatcounter.com/count"
+      async
+      src="//gc.zgo.at/count.js"
+    ></script>
+  </body>
+</html>
