@@ -42,7 +42,18 @@
     const endpoint = new URL(API, window.location.origin);
     endpoint.searchParams.set("route", route);
     new URLSearchParams(query).forEach((value, key) => endpoint.searchParams.set(key, value));
-    const response = await fetch(endpoint, { ...options, headers, cache: "no-store" });
+    const timeoutMs = path === "/api/login" || path === "/api/me" ? 10000 : path.startsWith("/api/covers") ? 60000 : 30000;
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), timeoutMs);
+    let response;
+    try {
+      response = await fetch(endpoint, { ...options, headers, cache: "no-store", signal: controller.signal });
+    } catch (error) {
+      if (error.name === "AbortError") throw new Error("Сервер долго не отвечает. Обнови страницу и проверь подключение.");
+      throw new Error("Не удалось связаться с сервером. Проверь адрес и подключение к сети.");
+    } finally {
+      clearTimeout(timeout);
+    }
     const data = await response.json().catch(() => ({}));
     if (!response.ok) {
       if (response.status === 401 && path !== "/api/login") showLogin("Сеанс закончился. Войди снова.");
@@ -142,6 +153,7 @@
         method: "POST",
         body: JSON.stringify({ login: document.getElementById("loginUser").value.trim(), password: document.getElementById("loginPassword").value }),
       });
+      message.textContent = "Вход принят, загружаю каталог…";
       token = result.token;
       sessionStorage.setItem(SESSION_KEY, token);
       document.getElementById("loginPassword").value = "";
