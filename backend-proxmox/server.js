@@ -11,6 +11,11 @@ const SITE_DIR = process.env.SITE_DIR || "/srv/books/site";
 const PORT = Number(process.env.PORT || 8080);
 const BIND_ADDRESS = process.env.BIND_ADDRESS || "0.0.0.0";
 const BODY_LIMIT = 3_000_000;
+const PUBLIC_URL = String(process.env.PUBLIC_URL || "").replace(/\/$/, "");
+
+function isLoopback(address) {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1";
+}
 
 function send(res, status, type, body, extra = {}) {
   res.writeHead(status, { "Content-Type": type, "X-Content-Type-Options": "nosniff", "Referrer-Policy": "no-referrer", "Cache-Control": "no-store", ...extra });
@@ -45,10 +50,16 @@ async function staticFile(res, pathname) {
 const server = http.createServer(async (req, res) => {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
+    const trustedProxy = isLoopback(req.socket.remoteAddress || "");
+    const secure = Boolean(req.socket.encrypted) || (trustedProxy && String(req.headers["x-forwarded-proto"] || "").toLowerCase() === "https");
+    if (!secure && PUBLIC_URL && req.method === "GET" && ["/admin", "/admin.html", "/admin-app.html"].includes(url.pathname)) {
+      res.writeHead(302, { Location: `${PUBLIC_URL}${url.pathname}${url.search}`, "Cache-Control": "no-store" });
+      return res.end();
+    }
     if (url.pathname === "/api") {
       const host = req.headers.host || "";
       const origin = req.headers.origin || "";
-      if (origin && origin !== `http://${host}`) return send(res, 403, "application/json; charset=utf-8", JSON.stringify({ error: "Источник не разрешён." }));
+      if (origin && origin !== `${secure ? "https" : "http"}://${host}`) return send(res, 403, "application/json; charset=utf-8", JSON.stringify({ error: "Источник не разрешён." }));
       if (req.method === "OPTIONS") return send(res, 204, "application/json; charset=utf-8", "", { "Access-Control-Allow-Methods": "GET,POST,PUT,OPTIONS", "Access-Control-Allow-Headers": "Authorization,Content-Type" });
       let body = "";
       for await (const chunk of req) {
@@ -57,8 +68,13 @@ const server = http.createServer(async (req, res) => {
       }
       const query = Object.fromEntries(url.searchParams.entries());
       const headers = Object.fromEntries(Object.entries(req.headers).map(([key, value]) => [key.toLowerCase(), Array.isArray(value) ? value.join(",") : String(value || "")]));
-      const result = await backend.handle({ method: req.method.toUpperCase(), route: query.route || "/api/health", query, headers, body, ip: req.socket.remoteAddress || "unknown" });
-      return send(res, result.statusCode, result.headers["Content-Type"], result.body);
+      const route = query.route || "/api/health";
+      const startedAt = Date.now();
+      process.stdout.write(`${new Date().toISOString()} start ${req.method} ${route}\n`);
+      const forwardedIp = trustedProxy ? String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() : "";
+      const result = await backend.handle({ method: req.method.toUpperCase(), route, query, headers, body, secure, ip: forwardedIp || req.socket.remoteAddress || "unknown" });
+      process.stdout.write(`${new Date().toISOString()} done ${req.method} ${route} ${result.statusCode} ${Date.now() - startedAt}ms\n`);
+      return send(res, result.statusCode, result.headers["Content-Type"], result.body, result.headers);
     }
     if (req.method !== "GET" && req.method !== "HEAD") return send(res, 405, "text/plain; charset=utf-8", "Method not allowed", { Allow: "GET, HEAD" });
     if (req.method === "HEAD") {
